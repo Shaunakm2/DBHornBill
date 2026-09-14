@@ -234,7 +234,9 @@
                 return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
               }).join('') + '</select></label>';
           }
-          return '<label>' + esc(f.label) + '<input data-k="' + f.k + '" ' +
+          return '<label>' + esc(f.label) +
+            (f.optional ? ' <span class="ad-opt">optional</span>' : '') +
+            '<input data-k="' + f.k + '"' + (f.optional ? ' data-optional="1"' : '') + ' ' +
             (f.type ? 'type="' + f.type + '" ' : '') +
             'placeholder="' + esc(f.placeholder || '') + '"></label>';
         }).join('') +
@@ -251,11 +253,11 @@
         var out = {}, bad = false;
         box.querySelectorAll('[data-k]').forEach(function (i) {
           out[i.dataset.k] = i.value.trim();
-          if (!i.value.trim()) bad = true;
+          if (!i.value.trim() && !i.dataset.optional) bad = true;
         });
         if (bad) {
           var e = box.querySelector('.ad-ask-err');
-          e.textContent = 'Every field is needed.';
+          e.textContent = 'Every field except the optional ones is needed.';
           e.hidden = false;
           return;
         }
@@ -364,15 +366,17 @@
 
     'new-trainer': function () {
       return ask('Add a trainer', [
+        { k: 'full_name', label: 'Full name', placeholder: 'Dana Vale' },
         { k: 'email', label: 'Email', type: 'email', placeholder: 'name@company.com' },
-        { k: 'full_name', label: 'Full name', placeholder: 'Dana Vale' }
-      ], 'A one-time password is shown once, here. Pass it on and have them ' +
-         'change it.'
+        { k: 'employee_id', label: 'Employee ID', placeholder: 'E2004', optional: true }
+      ], 'Trainers sign in with their email and a password, so the employee ID ' +
+         'is only for reporting \u2014 leave it blank if you do not need it. ' +
+         'A one-time password is shown once, here.'
       ).then(function (v) {
         if (!v) return;
         return run(adminCall({
-          action: 'create_staff', email: v.email,
-          full_name: v.full_name, role: 'trainer'
+          action: 'create_staff', email: v.email, full_name: v.full_name,
+          employee_id: v.employee_id || null, role: 'trainer'
         }).then(function (j) { showSecret(v.full_name, j.temporary_password); }));
       });
     },
