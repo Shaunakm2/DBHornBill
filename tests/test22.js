@@ -38,8 +38,13 @@ setTimeout(() => {
   if (d.querySelector('.fab')) fail('the practice-tasks button is visible signed out');
   if (/saved only in this browser/.test(d.getElementById('sandbox-note').textContent))
     fail('the banner still claims the data is browser-only');
-  if (!d.getElementById('signout')) fail('there is no way to sign out');
-  if (!d.getElementById('mmode')) fail('there is no way to reach account administration');
+  /* Signed out the account menu is present but empty and hidden; it is filled
+     in at sign-in. What matters here is that the shell offers no identity and
+     no controls to someone who has not signed in. */
+  if (!d.getElementById('acct')) fail('the shell has no account menu at all');
+  const menu = d.getElementById('acct-menu');
+  if (menu && menu.innerHTML.trim()) fail('the account menu has contents while signed out');
+  if (!d.body.classList.contains('signed-out')) fail('the shell is not marked signed out');
   console.log(errors.length ? 'FAILURES:\n' + errors.map(e => ' - ' + e).join('\n')
     : 'SIGNED-OUT BOOT CHECKS PASSED');
   process.exit(errors.length ? 1 : 0);
