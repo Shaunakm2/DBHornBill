@@ -24,7 +24,24 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  var lastError = null;
+
   function say(m, k) { if (window.APP && window.APP.toast) window.APP.toast(m, k); }
+
+  /* A toast fires behind the overlay, which is how an error can look like
+     nothing happening at all. Say it in the panel, where it is being read. */
+  function problem(m) {
+    lastError = m;
+    say(m, 'no');
+    render();
+  }
+
+  function errorStrip() {
+    if (!lastError) return '';
+    return '<div class="ad-err" role="alert"><b>That did not work.</b> ' +
+      esc(lastError) +
+      '<button class="ad-err-x" data-ad="dismiss" aria-label="Dismiss">\u00d7</button></div>';
+  }
 
   /* The service key never reaches the browser, so account creation goes
      through the Edge Function, which checks the caller's role server-side. */
@@ -42,9 +59,19 @@
       });
     }).then(function (r) {
       return r.json().then(function (j) {
-        if (!r.ok) throw new Error(j.error || 'That did not work.');
+        if (!r.ok) throw new Error(j.error || ('The server returned ' + r.status + '.'));
         return j;
+      }, function () {
+        throw new Error('The server returned ' + r.status + ' with no message.');
       });
+    }, function (e) {
+      /* fetch rejects with a bare TypeError when the browser blocks the call,
+         which is almost always CORS or an undeployed function. Neither is
+         guessable from "Failed to fetch". */
+      throw new Error(
+        'Could not reach the account service. Check that the admin-users ' +
+        'function is deployed, and that its ALLOWED_ORIGIN secret is exactly ' +
+        location.origin + ' with no trailing slash. (' + (e.message || e) + ')');
     });
   }
 
@@ -165,10 +192,10 @@
 
   function render() {
     if (!root) return;
-    root.querySelector('.ad-body').innerHTML =
+    root.querySelector('.ad-body').innerHTML = errorStrip() + (
       busy ? '<div class="ad-empty"><p>Working…</p></div>'
         : tab === 'batches' ? (state.openBatch ? peopleView() : batchesView())
-        : accountsView();
+        : accountsView());
     root.querySelectorAll('.ad-tab').forEach(function (t) {
       t.classList.toggle('on', t.dataset.tab === tab);
     });
@@ -224,9 +251,10 @@
 
   /* ---------------------------------------------------------------- acts */
   function run(p) {
-    busy = true; render();
-    return p.then(load).catch(function (e) { say(e.message, 'no'); })
-      .then(function () { busy = false; render(); });
+    busy = true; lastError = null; render();
+    return p.then(load)
+      .then(function () { busy = false; render(); })
+      .catch(function (e) { busy = false; problem(e.message || String(e)); });
   }
 
   var acts = {
@@ -379,6 +407,7 @@
       if (!a) { if (ev.target === root) close(); return; }
       var k = a.dataset.ad;
       if (k === 'close') return close();
+      if (k === 'dismiss') { lastError = null; return render(); }
       if (acts[k]) acts[k](a.dataset.id, a);
     });
     document.addEventListener('keydown', escClose);
