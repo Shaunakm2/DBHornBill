@@ -305,7 +305,32 @@ select t_ok((select count(*) from activity
             'the trainee footprint is recorded and readable');
 
 \echo ''
+\echo '-- 7b. administration ----------------------------------------------'
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false);
+select t_ok((select count(*) from app.roster() where employee_id='E1001')=1,
+            'a trainer can see a trainee who is not yet on any of their batches');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000b1',false);
+select t_ok((select count(*) from profiles where employee_id='E1003')=0,
+            'a trainee still cannot see someone from another batch');
+
+-- The first membership on a new batch is the one that used to be impossible.
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',false);
+insert into batches (id,name,join_code,created_by)
+values ('00000000-0000-0000-0000-00000000c003','Batch 9 — Trial','BATCH9',
+        '00000000-0000-0000-0000-0000000000a3');
+insert into batch_members (batch_id,user_id,role_in_batch)
+values ('00000000-0000-0000-0000-00000000c003','00000000-0000-0000-0000-0000000000a3','trainer');
+select t_ok((select count(*) from batch_members
+             where batch_id='00000000-0000-0000-0000-00000000c003')=1,
+            'a trainer can staff the batch they just created');
+select t_blocked($$
+  insert into batch_members (batch_id,user_id,role_in_batch)
+  values ('00000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-0000000000b3','trainee')$$,
+  'a trainer cannot add people to someone else''s batch','policy');
+
+\echo ''
 \echo '-- 8. archive is enforced by the database --------------------------'
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false);
 update batches set status='archived', archived_at=now()
  where id='00000000-0000-0000-0000-00000000c001';
 select t_blocked($$
