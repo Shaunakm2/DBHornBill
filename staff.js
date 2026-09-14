@@ -31,6 +31,16 @@
   function redraw() { if (window.APP && window.APP.render) window.APP.render(); }
   function say(m, k) { if (window.APP && window.APP.toast) window.APP.toast(m, k); }
 
+  function A() { return window.ATSAdmin || {}; }
+
+  function act(p) {
+    busy = true; err = null; redraw();
+    return Promise.resolve(p)
+      .then(function () { return batches(true); })
+      .then(function () { busy = false; redraw(); })
+      .catch(function (e) { busy = false; err = e.message || String(e); redraw(); });
+  }
+
   function rpc(name, args) {
     var c = sb();
     if (!c) return Promise.reject(new Error('Not connected.'));
@@ -69,6 +79,17 @@
     var mine = rows.filter(function (b) { return b.mine; });
     var other = rows.filter(function (b) { return !b.mine; });
 
+    function actions(b) {
+      /* Only on your own batches. Another trainer's row is numbers, and an
+         action button sitting on it would be an invitation to a refusal. */
+      return '<td class="st-act">' +
+        '<button class="btn ghost sm" data-st="people" data-id="' + esc(b.batch_id) + '">People</button>' +
+        '<button class="btn ghost sm" data-st="edit" data-id="' + esc(b.batch_id) + '">Edit</button>' +
+        (b.status === 'active'
+          ? '<button class="btn ghost sm" data-st="archive" data-id="' + esc(b.batch_id) + '">Archive</button>'
+          : '') + '</td>';
+    }
+
     function table(list, readonly) {
       if (!list.length) return '';
       return '<table class="st-table"><thead><tr>' +
@@ -76,7 +97,7 @@
         '<th class="num">Trainees</th><th class="num">Open jobs</th>' +
         '<th class="num">To review</th><th class="num">On trainee</th>' +
         '<th class="num">To client</th><th class="num">Oldest</th>' +
-        '<th>Status</th></tr></thead><tbody>' +
+        '<th>Status</th>' + (readonly ? '' : '<th></th>') + '</tr></thead><tbody>' +
         list.map(function (b) {
           var stale = b.oldest_waiting_hours != null && b.oldest_waiting_hours > 24;
           return '<tr' + (b.status !== 'active' ? ' class="st-off"' : '') + '>' +
@@ -93,6 +114,7 @@
             '<td class="num' + (stale ? ' st-hot' : '') + '">' +
               hrs(b.oldest_waiting_hours) + '</td>' +
             '<td>' + (b.status === 'active' ? 'Active' : 'Archived') + '</td>' +
+            (readonly ? '' : actions(b)) +
             '</tr>';
         }).join('') + '</tbody></table>';
     }
@@ -100,12 +122,15 @@
     var waiting = mine.reduce(function (n, b) { return n + Number(b.awaiting_review || 0); }, 0);
 
     return '<div class="h"><h2>Overview</h2><span class="sp"></span>' +
-      '<div class="btnrow"><button class="btn ghost" data-st="refresh">Refresh</button></div></div>' +
+      '<div class="btnrow"><button class="btn ghost" data-st="refresh">Refresh</button>' +
+      '<button class="btn" data-st="newbatch">New batch</button></div></div>' +
       (err ? '<div class="ad-err">' + esc(err) + '</div>' : '') +
       (busy ? '<p class="muted">Loading…</p>' : '') +
       (!rows.length && !busy
-        ? '<div class="ad-empty"><h3>No batches yet</h3><p>Create one under ' +
-          'Accounts and batches, then build it out before trainees join.</p></div>'
+        ? '<div class="ad-empty"><h3>Set up your first desk</h3><p>A batch is one ' +
+          'shared desk: the clients, the job orders and the pipeline a group of ' +
+          'trainees will work. Create it now and build it out before anyone joins.</p>' +
+          '<button class="btn" data-st="newbatch">New batch</button></div>'
         : '<div class="sec">' +
           '<p class="st-lead">' +
           (waiting
@@ -121,6 +146,108 @@
               table(other, true)
             : '') +
           '</div>');
+  }
+
+  /* --------------------------------------------------------- batch people */
+  var people = { batch: null, roster: [], members: [] };
+
+  function openPeople(id) {
+    var c = sb();
+    busy = true; err = null; people.batch = id; redraw();
+    Promise.all([
+      c.rpc('roster'),
+      c.from('batch_members').select('*').eq('batch_id', id)
+    ]).then(function (r) {
+      if (r[0].error) throw new Error(r[0].error.message);
+      if (r[1].error) throw new Error(r[1].error.message);
+      people.roster = r[0].data || [];
+      people.members = r[1].data || [];
+      busy = false; redraw();
+    }).catch(function (e) { busy = false; err = e.message; redraw(); });
+  }
+
+  function peopleView() {
+    var b = (cache.batches || []).filter(function (x) {
+      return x.batch_id === people.batch;
+    })[0] || {};
+    var on = {};
+    people.members.forEach(function (m) { on[m.user_id] = m.role_in_batch; });
+    var list = people.roster.filter(function (p) { return p.role !== 'super_admin'; });
+
+    return '<div class="h"><h2>' + esc(b.batch_name || 'Batch') + '</h2>' +
+      '<span class="sp"></span><div class="btnrow">' +
+      '<button class="btn ghost" data-st="back">\u2190 Overview</button></div></div>' +
+      (err ? '<div class="ad-err">' + esc(err) + '</div>' : '') +
+      '<div class="sec">' +
+      '<p class="st-lead">Trainees sign in with their employee ID and the batch ' +
+      'code <span class="mono">' + esc(b.join_code || '') + '</span>. ' +
+      'They never have a password, so there is never one to reset.</p>' +
+      (busy ? '<p class="muted">Loading\u2026</p>' : '') +
+      (!list.length && !busy
+        ? '<div class="ad-empty"><h3>Nobody to add yet</h3><p>Create accounts ' +
+          'under Accounts first, then come back and put them on this batch.</p></div>'
+        : '<table class="st-table"><thead><tr><th>Name</th><th>Employee ID</th>' +
+          '<th>Role</th><th></th></tr></thead><tbody>' +
+          list.map(function (p) {
+            return '<tr' + (p.is_active ? '' : ' class="st-off"') + '>' +
+              '<td>' + esc(p.full_name) +
+              (p.is_active ? '' : ' <span class="st-tag">deactivated</span>') + '</td>' +
+              '<td class="mono">' + esc(p.employee_id || '\u2014') + '</td>' +
+              '<td>' + esc(p.role) + '</td>' +
+              '<td class="st-act">' + (on[p.id]
+                ? '<button class="btn ghost sm" data-st="unassign" data-id="' + esc(p.id) + '">Remove</button>'
+                : '<button class="btn ghost sm" data-st="assign" data-id="' + esc(p.id) +
+                  '" data-role="' + esc(p.role) + '">Add to batch</button>') + '</td></tr>';
+          }).join('') + '</tbody></table>') +
+      '</div>';
+  }
+
+  /* ------------------------------------------------------------- accounts */
+  var roster = null;
+
+  function loadRoster(force) {
+    if (roster && !force) return Promise.resolve(roster);
+    return rpc('roster').then(function (r) { roster = r; return r; });
+  }
+
+  function accountsView() {
+    var isAdmin = me().role === 'super_admin';
+    return '<div class="h"><h2>Accounts</h2><span class="sp"></span>' +
+      (isAdmin ? '<div class="btnrow">' +
+        '<button class="btn" data-st="newtrainee">Add trainee</button>' +
+        '<button class="btn ghost" data-st="newtrainer">Add trainer</button></div>' : '') +
+      '</div>' +
+      (err ? '<div class="ad-err">' + esc(err) + '</div>' : '') +
+      '<div class="sec">' +
+      (isAdmin ? '' : '<p class="muted st-note">Only the administrator can create ' +
+        'or deactivate accounts.</p>') +
+      (busy && !roster ? '<p class="muted">Loading\u2026</p>' : '') +
+      (roster && !roster.length
+        ? '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
+          (isAdmin ? 'Add a trainee or a trainer to get started.'
+                   : 'The administrator has not created any accounts yet.') + '</p></div>'
+        : '<table class="st-table"><thead><tr><th>Name</th><th>Employee ID</th>' +
+          '<th>Email</th><th>Role</th><th class="num">Batches</th>' +
+          (isAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' +
+          (roster || []).map(function (p) {
+            return '<tr' + (p.is_active ? '' : ' class="st-off"') + '>' +
+              '<td>' + esc(p.full_name) +
+              (p.is_active ? '' : ' <span class="st-tag">deactivated</span>') + '</td>' +
+              '<td class="mono">' + esc(p.employee_id || '\u2014') + '</td>' +
+              '<td>' + esc(p.email || '\u2014') + '</td>' +
+              '<td>' + esc(p.role) + '</td>' +
+              '<td class="num">' + p.batches + '</td>' +
+              (isAdmin ? '<td class="st-act">' + (p.id === me().id ? '' :
+                '<button class="btn ghost sm" data-st="' +
+                  (p.is_active ? 'deactivate' : 'reactivate') + '" data-id="' + esc(p.id) + '">' +
+                  (p.is_active ? 'Deactivate' : 'Reactivate') + '</button>' +
+                (p.role !== 'trainee'
+                  ? '<button class="btn ghost sm" data-st="resetpw" data-id="' + esc(p.id) +
+                    '">Reset password</button>' : '')) + '</td>' : '') +
+              '</tr>';
+          }).join('') + '</tbody></table>') +
+      '<p class="muted st-note">Accounts are deactivated, never deleted, so the ' +
+      'work they did stays attributable after they leave.</p></div>';
   }
 
   /* -------------------------------------------------------------- reports */
@@ -159,8 +286,11 @@
           (scope === b.batch_id ? ' selected' : '') + '>' + esc(b.batch_name) +
           (b.mine ? '' : ' (not yours)') + '</option>';
       }).join('') + '</select></label>' +
-      '<p class="muted st-note">Downloads are Excel workbooks. Figures are ' +
-      'as at the moment you press the button.</p></div>' +
+      '<p class="muted st-note">Downloads are Excel workbooks covering <b>' +
+      esc(scope
+        ? (rows.filter(function (b) { return b.batch_id === scope; })[0] || {}).batch_name
+        : 'every batch you can report on') +
+      '</b>. Figures are as at the moment you press the button.</p></div>' +
       '<div class="st-cards">' +
       REPORTS.map(function (r) {
         return '<div class="st-card"><h3>' + esc(r.t) + '</h3>' +
@@ -260,12 +390,44 @@
     });
   }
 
-  /* -------------------------------------------------------------- accounts */
-  function accounts() {
-    return '<div class="h"><h2>Accounts and batches</h2></div>' +
-      '<div class="sec"><p class="st-lead">Create batches, add trainees and ' +
-      'trainers, and put people on the desks they will work.</p>' +
-      '<button class="btn" data-act="manage">Open</button></div>';
+  /* Editing a batch. Everything here is safe to change after the fact except
+     the code, which trainees may already have written down \u2014 so it is
+     offered, with the consequence stated rather than hidden. */
+  function editBatch(id) {
+    var b = (cache.batches || []).filter(function (x) { return x.batch_id === id; })[0];
+    if (!b) return;
+    return A().ask('Edit ' + b.batch_name, [
+      { k: 'name', label: 'Batch name', placeholder: b.batch_name },
+      { k: 'code', label: 'Batch code', placeholder: b.join_code },
+      { k: 'mode', label: 'Mode', options: ['collaborative', 'parallel'] },
+      { k: 'desk', label: 'Desk type', options: ['d180', 'd360', 'dvms'] }
+    ], 'Changing the code stops the old one working straight away, so anyone ' +
+       'who has written it down will need the new one. Switching to parallel ' +
+       'hides trainees\u2019 work from each other from that moment; it does not ' +
+       'hide what they have already seen.'
+    ).then(function (v) {
+      if (!v) return;
+      if (!/^[A-Z0-9-]{4,24}$/.test(v.code.toUpperCase())) {
+        err = 'A batch code is 4 to 24 characters: capitals, digits and hyphens.';
+        return redraw();
+      }
+      return act(sb().from('batches').update({
+        name: v.name, join_code: v.code.toUpperCase(),
+        mode: v.mode, desk_type: v.desk
+      }).eq('id', id).select().then(function (r) {
+        if (r.error) {
+          throw new Error(String(r.error.code) === '23505'
+            ? 'That batch code is already in use by another batch.'
+            : r.error.message);
+        }
+        /* A refused update changes nothing and raises nothing, so the row
+           count is the only signal that it did not happen. */
+        if (!r.data || !r.data.length) {
+          throw new Error('That batch is not yours to edit.');
+        }
+        say('Batch updated.', 'ok');
+      }));
+    });
   }
 
   /* ---------------------------------------------------------------- render */
@@ -279,22 +441,96 @@
       batches().then(function () { busy = false; redraw(); })
         .catch(function (e) { busy = false; err = e.message; redraw(); });
     }
-    if (view === 'overview') return overview();
+    if (view === 'overview') return people.batch ? peopleView() : overview();
     if (view === 'staffreports') return reports();
-    return accounts();
+    if (!roster && !busy) {
+      busy = true;
+      loadRoster().then(function () { busy = false; redraw(); })
+        .catch(function (e) { busy = false; err = e.message; redraw(); });
+    }
+    return accountsView();
   }
 
   document.addEventListener('click', function (ev) {
     var t = ev.target.closest && ev.target.closest('[data-st]');
     if (!t) return;
     var k = t.dataset.st;
-    if (k === 'refresh') { ev.preventDefault(); return refresh(); }
-    if (k === 'dl') { ev.preventDefault(); return download(t.dataset.k); }
+    ev.preventDefault();
+    var id = t.dataset.id;
+    var a = A();
+
+    if (k === 'refresh') return refresh();
+    if (k === 'dl') return download(t.dataset.k);
+    if (k === 'back') { people.batch = null; return redraw(); }
+    if (k === 'people') return openPeople(id);
+
+    if (k === 'newbatch') return a.acts && a.acts['new-batch']().then(function () {
+      cache.batches = null; return act(batches(true));
+    });
+
+    if (k === 'edit') return editBatch(id);
+
+    if (k === 'archive') {
+      return a.ask('Archive this batch?', [
+        { k: 'confirm', label: 'Type ARCHIVE to confirm', placeholder: 'ARCHIVE' }
+      ], 'An archived batch can still be read and reported on, but nobody can ' +
+         'change anything in it \u2014 including you. Nothing is deleted.'
+      ).then(function (v) {
+        if (!v || v.confirm.toUpperCase() !== 'ARCHIVE') return;
+        return act(sb().from('batches')
+          .update({ status: 'archived', archived_at: new Date().toISOString() })
+          .eq('id', id).select().then(function (r) {
+            if (r.error) throw new Error(r.error.message);
+            if (!r.data || !r.data.length) {
+              throw new Error('That batch is not yours to archive.');
+            }
+          }));
+      });
+    }
+
+    if (k === 'assign') {
+      return act(sb().from('batch_members').insert({
+        batch_id: people.batch, user_id: id,
+        role_in_batch: t.dataset.role === 'trainer' ? 'trainer' : 'trainee'
+      }).then(function (r) {
+        if (r.error) throw new Error(r.error.message);
+        return openPeople(people.batch);
+      }));
+    }
+    if (k === 'unassign') {
+      return act(sb().from('batch_members').delete()
+        .eq('batch_id', people.batch).eq('user_id', id)
+        .then(function (r) {
+          if (r.error) throw new Error(r.error.message);
+          return openPeople(people.batch);
+        }));
+    }
+
+    if (k === 'newtrainee' || k === 'newtrainer') {
+      var which = k === 'newtrainee' ? 'new-trainee' : 'new-trainer';
+      return a.acts[which]().then(function () {
+        return act(loadRoster(true));
+      });
+    }
+    if (k === 'deactivate' || k === 'reactivate') {
+      return act(a.adminCall({ action: 'set_active', user_id: id,
+        is_active: k === 'reactivate' }).then(function () { return loadRoster(true); }));
+    }
+    if (k === 'resetpw') {
+      return act(a.adminCall({ action: 'reset_password', user_id: id })
+        .then(function (j) {
+          var n = (roster || []).filter(function (p) { return p.id === id; })[0] || {};
+          a.showSecret(n.full_name || 'this user', j.temporary_password);
+        }));
+    }
   });
 
   document.addEventListener('change', function (ev) {
     if (ev.target.dataset && ev.target.dataset.st === 'scope') {
       scope = ev.target.value || null;
+      /* Without a redraw the selection had no visible effect at all, which
+         reads as a control that does not work. */
+      redraw();
     }
   });
 
