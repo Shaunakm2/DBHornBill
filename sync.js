@@ -602,6 +602,11 @@
     /* Reset wiped the browser database. There is no such thing now. */
     var rs = document.getElementById('btn-reset');
     if (rs) rs.hidden = true;
+    /* Session summary was the single-player wrap-up: one browser, one
+       scripted scenario. For staff the equivalent is the Trainee footprint
+       report, which covers the whole batch and every person on it. */
+    var ss = document.getElementById('btn-session');
+    if (ss) ss.hidden = me.role !== 'trainee';
 
     document.body.classList.remove('signed-out');
     document.body.classList.add('role-' + me.role);
@@ -834,6 +839,12 @@
     }).then(function (d) {
       materialise(d);
       dressShell();
+      /* An administrator signing in wants the operation, not whichever desk
+         happened to be created most recently. Only on a cold start: a
+         refresh or a deep link keeps whatever was being looked at. */
+      if (me.role === 'super_admin' && !location.hash) {
+        location.hash = '#/overview';
+      }
       subscribe();
       api.available = true;
       api.signedIn = true;
