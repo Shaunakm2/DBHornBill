@@ -133,6 +133,9 @@
           '<td class="ad-act">' +
           '<button class="btn ghost sm" data-ad="people" data-id="' + b.id + '">People</button>' +
           (b.status === 'active'
+            ? '<button class="btn ghost sm" data-ad="edit" data-id="' + b.id + '">Edit</button>'
+            : '') +
+          (b.status === 'active'
             ? '<button class="btn ghost sm" data-ad="archive" data-id="' + b.id + '">Archive</button>'
             : '') +
           '</td></tr>';
@@ -190,6 +193,7 @@
           '<td>' + esc(p.role) + '</td>' +
           '<td class="num">' + p.batches + '</td>' +
           (isAdmin ? '<td class="ad-act">' +
+            '<button class="btn ghost sm" data-ad="person" data-id="' + p.id + '">Edit</button>' +
             (p.id === me().id ? ''
               : '<button class="btn ghost sm" data-ad="' +
                 (p.is_active ? 'deactivate' : 'reactivate') + '" data-id="' + p.id + '">' +
@@ -231,13 +235,15 @@
           if (f.options) {
             return '<label>' + esc(f.label) + '<select data-k="' + f.k + '">' +
               f.options.map(function (o) {
-                return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
+                return '<option value="' + esc(o) + '"' +
+                  (f.value === o ? ' selected' : '') + '>' + esc(o) + '</option>';
               }).join('') + '</select></label>';
           }
           return '<label>' + esc(f.label) +
             (f.optional ? ' <span class="ad-opt">optional</span>' : '') +
             '<input data-k="' + f.k + '"' + (f.optional ? ' data-optional="1"' : '') + ' ' +
             (f.type ? 'type="' + f.type + '" ' : '') +
+            (f.value != null ? 'value="' + esc(f.value) + '" ' : '') +
             'placeholder="' + esc(f.placeholder || '') + '"></label>';
         }).join('') +
         '<div class="ad-ask-err" hidden></div>' +
@@ -316,6 +322,43 @@
       });
     },
 
+    edit: function (id) {
+      var b = null;
+      state.batches.forEach(function (x) { if (x.id === id) b = x; });
+      if (!b) return;
+      return ask('Edit batch', [
+        { k: 'name', label: 'Batch name', value: b.name },
+        { k: 'code', label: 'Batch code', value: b.join_code },
+        { k: 'mode', label: 'Mode', options: ['collaborative', 'parallel'], value: b.mode },
+        { k: 'desk', label: 'Desk type', options: ['d180', 'd360', 'dvms'], value: b.desk_type }
+      ], 'Changing the code changes what trainees type to sign in, so tell them ' +
+         'before you do. Switching to parallel hides trainees\u2019 work from each ' +
+         'other from that moment; nothing already written is removed.'
+      ).then(function (v) {
+        if (!v) return;
+        if (!/^[A-Z0-9-]{4,24}$/.test(v.code.toUpperCase())) {
+          say('A batch code is 4 to 24 characters: capitals, digits and hyphens.', 'no');
+          return;
+        }
+        return run(sb().from('batches').update({
+          name: v.name, join_code: v.code.toUpperCase(),
+          mode: v.mode, desk_type: v.desk
+        }).eq('id', id).select().then(function (r) {
+          if (r.error) {
+            throw new Error(String(r.error.code) === '23505'
+              ? 'That batch code is already in use.' : r.error.message);
+          }
+          /* A refused update changes nothing and raises nothing. Say so
+             rather than reporting a save that did not happen. */
+          if (!r.data || !r.data.length) {
+            throw new Error('That batch is not yours to change. Ask the administrator, ' +
+              'or the trainer who runs it.');
+          }
+          say('Batch updated.', 'ok');
+        }));
+      });
+    },
+
     people: function (id) { state.openBatch = id; render(); },
     back: function () { state.openBatch = null; render(); },
 
@@ -378,6 +421,28 @@
           action: 'create_staff', email: v.email, full_name: v.full_name,
           employee_id: v.employee_id || null, role: 'trainer'
         }).then(function (j) { showSecret(v.full_name, j.temporary_password); }));
+      });
+    },
+
+    person: function (id) {
+      var p = null;
+      state.roster.forEach(function (x) { if (x.id === id) p = x; });
+      if (!p) return;
+      return ask('Edit ' + p.full_name, [
+        { k: 'full_name', label: 'Full name', value: p.full_name },
+        { k: 'employee_id', label: 'Employee ID', value: p.employee_id || '',
+          optional: p.role !== 'trainee' }
+      ], p.role === 'trainee'
+        ? 'The employee ID is what this trainee types to sign in. Changing it ' +
+          'changes their credential, so tell them before you do.'
+        : 'Trainers sign in with their email, so the employee ID is only for ' +
+          'reporting.'
+      ).then(function (v) {
+        if (!v) return;
+        return run(adminCall({
+          action: 'update_person', user_id: id,
+          full_name: v.full_name, employee_id: v.employee_id || null
+        }).then(function () { say('Saved.', 'ok'); }));
       });
     },
 
@@ -452,5 +517,11 @@
     if (window.Store && window.Store.reload) window.Store.reload();
   }
 
-  window.ATSAdmin = { open: open, close: close };
+  /* The panel's dialogs and its call into the account service are useful on
+     their own. staff.js reuses them so batch and account work can live in the
+     rail rather than behind an overlay, without a second copy of either. */
+  window.ATSAdmin = {
+    open: open, close: close,
+    ask: ask, adminCall: adminCall, showSecret: showSecret, acts: acts
+  };
 })();
