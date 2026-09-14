@@ -583,9 +583,13 @@
   function dressShell() {
     var note = document.getElementById('sandbox-note');
     if (note) {
+      /* The old wording said the data was not connected to any live system in
+         the same breath as telling the trainee their work is saved. Both were
+         meant to be true — one about production systems, one about their own
+         progress — and together they read as a contradiction. */
       note.innerHTML = '<b>Practice environment.</b> Invented records on a shared ' +
-        'training desk. Your work is saved for you and visible to your trainer. ' +
-        'Not connected to any live system.';
+        'training desk \u2014 no real candidate or client data. Your work is saved ' +
+        'and visible to your trainer.';
     }
     var who = document.getElementById('whoami');
     if (who) who.textContent = me.full_name + (batch ? ' \u00b7 ' + batch.name : '');
