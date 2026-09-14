@@ -521,3 +521,8 @@ body.signed-out .acct { display: none; }
   padding-left: 10px;
   margin-bottom: 14px;
 }
+.st-act { text-align: right; white-space: nowrap; }
+.st-act .btn + .btn { margin-left: 6px; }
+.st-act { text-align: right; white-space: nowrap; }
+.st-act .btn + .btn { margin-left: 6px; }
+.st-act .muted { font-size: 11.5px; }
