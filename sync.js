@@ -594,13 +594,7 @@
       av.textContent = me.full_name.split(/\s+/).map(function (w) { return w[0]; })
         .join('').slice(0, 2).toUpperCase();
     }
-    var out = document.getElementById('signout');
-    if (out) out.hidden = false;
-    /* Creating accounts and batches is staff work. The check that matters is
-       server-side; hiding the link is only so trainees are not shown a door
-       that will not open. */
-    var mg = document.getElementById('mmode');
-    if (mg) mg.hidden = me.role === 'trainee';
+    buildAccountMenu();
     /* Reset wiped the browser database. There is no such thing now. */
     var rs = document.getElementById('btn-reset');
     if (rs) rs.hidden = true;
@@ -609,13 +603,121 @@
     document.body.classList.add('role-' + me.role);
   }
 
-  /* Sign out and Manage are in the shell, which app.js does not own, so the
-     handler lives here. */
+  /* The account menu. Everything that is about the person rather than the
+     desk lives behind their own name: which batch they are on, the things
+     only staff can do, and the way out. Sign out sitting loose in the top bar
+     next to Help was one accidental click from losing someone's place. */
+  var allBatches = [];
+
+  function buildAccountMenu() {
+    var m = document.getElementById('acct-menu');
+    if (!m) return;
+    var staff = me.role !== 'trainee';
+    var others = allBatches.filter(function (b) { return !batch || b.id !== batch.id; });
+
+    m.innerHTML =
+      '<div class="acct-head"><b>' + esc(me.full_name) + '</b>' +
+      '<span>' + esc(me.employee_id || me.email || '') + '</span>' +
+      '<span class="acct-role">' + esc(
+        me.role === 'super_admin' ? 'Administrator'
+          : me.role === 'trainer' ? 'Trainer' : 'Trainee') +
+      (batch ? ' \u00b7 ' + esc(batch.name) : '') + '</span></div>' +
+
+      (others.length
+        ? '<div class="acct-sec"><div class="acct-lab">Switch batch</div>' +
+          others.map(function (b) {
+            return '<button class="acct-item" data-acct="switch" data-id="' + esc(b.id) + '">' +
+              esc(b.name) + '<span class="mono">' + esc(b.join_code) + '</span></button>';
+          }).join('') + '</div>'
+        : '') +
+
+      (staff
+        ? '<div class="acct-sec">' +
+          '<button class="acct-item" data-acct="manage">Batches and accounts</button>' +
+          '</div>'
+        : '') +
+
+      '<div class="acct-sec">' +
+      '<button class="acct-item" data-acct="prefs">Preferences</button>' +
+      '<button class="acct-item" data-acct="help">Help</button>' +
+      '</div>' +
+
+      '<div class="acct-sec">' +
+      '<button class="acct-item danger" data-acct="signout">Sign out</button>' +
+      '</div>';
+  }
+
+  function toggleMenu(open) {
+    var m = document.getElementById('acct-menu');
+    var b = document.getElementById('acct-btn');
+    if (!m || !b) return;
+    var show = open == null ? m.hidden : open;
+    m.hidden = !show;
+    b.setAttribute('aria-expanded', String(show));
+  }
+
+  /* Small, honest set: the three things that actually change how the desk
+     behaves for this person. Anything else would be a settings screen for
+     the sake of having one. */
+  function prefsDialog() {
+    var DB = db();
+    var box = document.createElement('div');
+    box.className = 'ad-ask';
+    box.innerHTML = '<div class="ad-ask-card"><h3>Preferences</h3>' +
+      '<label class="pref"><input type="checkbox" data-p="rail"' +
+      (DB.uiRail ? ' checked' : '') + '> Compact navigation</label>' +
+      '<label class="pref"><input type="checkbox" data-p="coach"' +
+      (DB.uiCoach ? ' checked' : '') + '> Hide the guidance panel</label>' +
+      '<label class="pref"><input type="checkbox" data-p="training"' +
+      (DB.training ? ' checked' : '') + '> Training mode: explain why a rule fired</label>' +
+      '<p class="ad-help">These apply to you on this desk. They do not change ' +
+      'what anyone else sees.</p>' +
+      '<div class="ad-ask-row"><button class="btn" data-x="ok">Done</button></div></div>';
+    document.body.appendChild(box);
+    box.addEventListener('change', function (ev) {
+      var k = ev.target.dataset.p;
+      if (!k) return;
+      if (k === 'rail') DB.uiRail = ev.target.checked;
+      if (k === 'coach') DB.uiCoach = ev.target.checked;
+      if (k === 'training') DB.training = ev.target.checked;
+      redraw();
+    });
+    box.addEventListener('click', function (ev) {
+      if (ev.target.dataset.x === 'ok' || ev.target === box) box.remove();
+    });
+  }
+
+  /* The shell is not app.js's, so its handlers live here. */
   document.addEventListener('click', function (ev) {
-    var a = ev.target.closest && ev.target.closest('[data-act="signout"]');
-    if (a) { ev.preventDefault(); Auth.signOut(); return; }
-    var m = ev.target.closest && ev.target.closest('[data-act="manage"]');
-    if (m && window.ATSAdmin) { ev.preventDefault(); window.ATSAdmin.open(); }
+    var t = ev.target;
+    if (!t.closest) return;
+
+    if (t.closest('#acct-btn')) { ev.preventDefault(); return toggleMenu(); }
+    if (!t.closest('#acct-menu')) toggleMenu(false);
+
+    /* Still honoured from anywhere, because the empty-state screens use them. */
+    if (t.closest('[data-act="signout"]')) { ev.preventDefault(); return Auth.signOut(); }
+    if (t.closest('[data-act="manage"]') && window.ATSAdmin) {
+      ev.preventDefault(); return window.ATSAdmin.open();
+    }
+
+    var item = t.closest('[data-acct]');
+    if (!item) return;
+    ev.preventDefault();
+    toggleMenu(false);
+    var k = item.dataset.acct;
+    if (k === 'signout') return Auth.signOut();
+    if (k === 'manage') return window.ATSAdmin && window.ATSAdmin.open();
+    if (k === 'prefs') return prefsDialog();
+    if (k === 'help') { location.hash = '#/guide'; return redraw(); }
+    if (k === 'switch') {
+      try { sessionStorage.setItem('ats_batch', item.dataset.id); } catch (e) {}
+      location.reload();
+    }
+  });
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') toggleMenu(false);
   });
 
   /* ------------------------------------------------------------ realtime */
@@ -675,6 +777,7 @@
     }).then(function (r) {
       if (r.error) throw r.error;
       var rows = r.data || [];
+      allBatches = rows;
       if (!rows.length) {
         /* Staff land here on day one: there is nothing to load because
            nothing has been created yet. Treating that as an error locked the
@@ -687,10 +790,13 @@
             '<button class="btn ghost" data-act="signout">Sign out</button>');
         } else {
           dressShell();
-          screen('No batches yet',
-            'A batch is a group of trainees working one shared desk. Create one, ' +
-            'add the trainees who will work it, then give them the batch code.',
-            '<button class="btn" data-act="manage">Create the first batch</button>');
+          screen('Set up your first desk',
+            'A batch is one shared desk: the clients, the job orders and the ' +
+            'pipeline that a group of trainees will work.<br><br>' +
+            'Create it now and build it out — companies, contacts, job orders — ' +
+            'before anyone joins. Trainees are added whenever you are ready, and ' +
+            'they walk into a desk that already has live requirements on it.',
+            '<button class="btn" data-act="manage">Create a batch</button>');
         }
         return Promise.reject({ handled: true });
       }
