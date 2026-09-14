@@ -84,13 +84,24 @@
       sb().rpc('roster'),
       sb().from('batch_members').select('*')
     ]).then(function (r) {
+      /* Every response is checked. Only the first was, which is how a 404 on
+         the roster turned into a screen that listed nobody and explained
+         nothing — the most misleading failure there is, because it looks like
+         an accurate answer. */
+      var names = ['batches', 'roster', 'memberships'];
+      for (var i = 0; i < r.length; i++) {
+        if (r[i].error) {
+          throw new Error('Could not load ' + names[i] + ': ' + r[i].error.message +
+            (String(r[i].error.code) === 'PGRST202' || /not find|404/i.test(r[i].error.message)
+              ? ' — this usually means a migration has not been applied.' : ''));
+        }
+      }
       state.batches = r[0].data || [];
       state.roster = r[1].data || [];
       state.members = {};
       (r[2].data || []).forEach(function (m) {
         (state.members[m.batch_id] = state.members[m.batch_id] || []).push(m);
       });
-      if (r[0].error) throw r[0].error;
     });
   }
 
@@ -155,7 +166,10 @@
               : '<button class="btn ghost sm" data-ad="assign" data-id="' + p.id +
                 '" data-role="' + esc(p.role) + '">Add</button>') +
             '</td></tr>';
-        }).join('') + '</tbody></table>';
+        }).join('') + '</tbody></table>' +
+      (state.roster.filter(function (p) { return p.role !== 'super_admin'; }).length ? '' :
+        '<div class="ad-empty"><h3>Nobody to add yet</h3><p>Create trainee accounts ' +
+        'on the Accounts tab first, then come back and put them on this batch.</p></div>');
   }
 
   function accountsView() {
@@ -186,6 +200,11 @@
             '</td>' : '') +
           '</tr>';
       }).join('') + '</tbody></table>' +
+      (state.roster.length ? '' :
+        '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
+        (isAdmin ? 'Add a trainee or a trainer to get started.'
+                 : 'The administrator has not created any accounts yet.') +
+        '</p></div>') +
       '<p class="ad-help">Accounts are deactivated, never deleted, so the work they did ' +
       'stays attributable after they leave.</p>';
   }
@@ -337,6 +356,7 @@
           action: 'create_trainee',
           employee_id: v.employee_id, full_name: v.full_name
         }).then(function () {
+          tab = 'accounts';
           say('Trainee added. Put them on a batch to give them a desk.', 'ok');
         }));
       });
@@ -412,10 +432,9 @@
     });
     document.addEventListener('keydown', escClose);
 
-    load().then(render).catch(function (e) {
-      root.querySelector('.ad-body').innerHTML =
-        '<div class="ad-empty"><h3>Could not load</h3><p>' + esc(e.message) + '</p></div>';
-    });
+    /* The same error strip as every other failure, rather than a second
+       style of error message that appears only on first open. */
+    load().then(render).catch(function (e) { problem(e.message || String(e)); });
   }
 
   function escClose(ev) { if (ev.key === 'Escape') close(); }
