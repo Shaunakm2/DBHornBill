@@ -50,6 +50,14 @@ grant execute on all functions in schema auth to app_user;
 -- test role a member of it means the grants the tests assert are the grants
 -- the tests are actually subject to.
 grant authenticated to app_user;
+-- The Edge Functions run as service_role, which in Supabase bypasses RLS.
+-- The local stand-in needs the same shape or the sign-in path cannot be
+-- tested at all — and that is the path that broke in production.
+grant usage on schema public, auth, app to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+grant execute on all functions in schema app to service_role;
+alter role service_role bypassrls;
 SQL
 
 echo "-- schema applied"
