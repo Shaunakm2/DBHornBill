@@ -352,6 +352,44 @@ select s_blocked($$select count(*) from public.rpt_scorecard()$$,
 select s_blocked($$select count(*) from public.rpt_activity()$$,
   'a trainee cannot run the activity report');
 
+\echo ''
+\echo '=== 12. trainee sign-in =========================================='
+-- Never exercised end to end before, which is exactly why an ambiguous
+-- column reference reached a live classroom. Run as the service role,
+-- because that is who the Edge Function is.
+reset role;
+set role service_role;
+
+insert into auth_secrets (user_id, password, auth_email) values
+ ('00000000-0000-0000-0000-11111111b001','pw-e1','s1001@trainees.invalid'),
+ ('00000000-0000-0000-0000-11111111b007','pw-e7','s1007@trainees.invalid'),
+ ('00000000-0000-0000-0000-11111111b005','pw-e5','s1005@trainees.invalid')
+on conflict (user_id) do nothing;
+
+select s_ok((select o_batch_name from app.trainee_login_lookup('S1001','SMOKE1'))='Batch 1',
+            'a trainee signs in with their employee ID and batch code');
+select s_ok((select o_auth_email from app.trainee_login_lookup('s1001','smoke1'))
+            ='s1001@trainees.invalid',
+            'the lookup is case insensitive on both fields');
+select s_ok((select o_password from app.trainee_login_lookup(' S1001 ','SMOKE1'))='pw-e1',
+            'and tolerates stray whitespace');
+
+select s_blocked($$select app.trainee_login_lookup('S1001','SMOKE2')$$,
+  'the right ID against the wrong batch code is refused');
+select s_blocked($$select app.trainee_login_lookup('S9999','SMOKE1')$$,
+  'an unknown employee ID is refused');
+select s_blocked($$select app.trainee_login_lookup('S1001','NOSUCH')$$,
+  'an unknown batch code is refused');
+select s_blocked($$select app.trainee_login_lookup('S1007','SMOKE1')$$,
+  'a deactivated trainee cannot sign in');
+select s_blocked($$select app.trainee_login_lookup('S1005','SMOKE3')$$,
+  'a trainee on an archived batch cannot sign in');
+
+reset role;
+set role app_user;
+select s_blocked($$select public.trainee_login_lookup('S1001','SMOKE1')$$,
+  'a browser session still cannot call the credential lookup');
+
 reset role;
 \echo ''
 \echo 'SMOKE TEST COMPLETE'
