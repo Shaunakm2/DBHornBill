@@ -635,11 +635,6 @@
           }).join('') + '</div>'
         : '') +
 
-      (staff
-        ? '<div class="acct-sec">' +
-          '<button class="acct-item" data-acct="manage">Batches and accounts</button>' +
-          '</div>'
-        : '') +
 
       '<div class="acct-sec">' +
       '<button class="acct-item" data-acct="prefs">Preferences</button>' +
@@ -711,7 +706,6 @@
     toggleMenu(false);
     var k = item.dataset.acct;
     if (k === 'signout') return Auth.signOut();
-    if (k === 'manage') return window.ATSAdmin && window.ATSAdmin.open();
     if (k === 'prefs') return prefsDialog();
     if (k === 'help') { location.hash = '#/guide'; return redraw(); }
     if (k === 'switch') {
@@ -820,8 +814,11 @@
       try { remembered = sessionStorage.getItem('ats_batch'); } catch (e) {}
       var pick = rows.filter(function (b) { return b.id === remembered; })[0];
       if (pick) return pick;
-      if (rows.length === 1) return rows[0];
-      return batchPicker(rows);
+      /* No modal. The most recent batch is opened and the rest are one click
+         away in the account menu. An administrator in particular should not
+         be made to pick a single desk before seeing anything: their view of
+         the operation is Training operations, not one batch. */
+      return rows[0];
     }).then(function (picked) {
       batch = picked;
       return pull();
