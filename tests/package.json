@@ -1,0 +1,12 @@
+{
+  "name": "recruitment-ats-sandbox-tests",
+  "private": true,
+  "description": "Test suites for the recruitment ATS training sandbox. Not shipped with the app.",
+  "scripts": {
+    "test": "node run-all.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "fake-indexeddb": "^6.0.0"
+  }
+}
