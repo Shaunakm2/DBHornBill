@@ -10,6 +10,6 @@
    reach. The CI workflow fails the build if it finds one. */
 
 window.ATS_CONFIG = {
-  url: 'https://YOUR-PROJECT-REF.supabase.co',
-  anonKey: 'YOUR-ANON-KEY'
+  url: 'https://cwssahztaeltousbczxh.supabase.co',
+  anonKey: 'sb_publishable_bJktBazyw-F1SBO_HezDng_Vj8khlx4'
 };
