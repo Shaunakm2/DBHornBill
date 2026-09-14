@@ -443,3 +443,15 @@ body.signed-out .acct { display: none; }
   border-radius: 3px;
 }
 .ad-err-x:hover { background: rgba(138, 53, 32, .1); }
+
+/* A long name plus a batch name ran off the end of the top bar. The name is
+   allowed one line and no more; the batch is in the menu, where it is
+   readable. */
+.acct-btn .who {
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 900px) { .acct-btn .who { display: none; } }
+.ad-opt { font-size: 11px; color: var(--ink3, #5A6875); }
