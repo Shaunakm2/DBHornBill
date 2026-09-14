@@ -455,3 +455,69 @@ body.signed-out .acct { display: none; }
 }
 @media (max-width: 900px) { .acct-btn .who { display: none; } }
 .ad-opt { font-size: 11px; color: var(--ink3, #5A6875); }
+
+/* ------------------------------------------------------- staff section
+   Deliberately the same furniture as the desk: same table, same headers,
+   same spacing. This is one application with extra entitlements, not a
+   second product bolted on. */
+
+.st-lead { font-size: 14px; color: var(--ink, #20344F); margin: 0 0 18px; }
+.st-h { font-size: 13px; font-weight: 600; margin: 22px 0 9px; color: var(--ink, #20344F); }
+.st-note { font-size: 12px; margin: -4px 0 10px; }
+
+.st-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.st-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink3, #5A6875);
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line, #DCE1E6);
+  white-space: nowrap;
+}
+.st-table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line, #DCE1E6); }
+.st-table .num { text-align: right; padding-right: 16px; font-variant-numeric: tabular-nums; }
+.st-table tr.st-off td { color: var(--ink3, #5A6875); }
+
+/* Only two things on this board need to pull the eye: work sitting in your
+   queue, and work that has been sitting too long. */
+.st-table .st-hot { color: #9E3823; font-weight: 600; }
+
+.st-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink3, #5A6875);
+}
+
+.st-scope { margin-bottom: 20px; }
+.st-scope label { font-size: 12.5px; color: var(--ink3, #5A6875); }
+.st-scope select {
+  display: block;
+  margin-top: 5px;
+  min-width: 22em;
+  max-width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink, #20344F);
+  border: 1px solid var(--line2, #C9D1D8);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+}
+
+.st-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(19em, 1fr)); gap: 14px; }
+.st-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #DCE1E6);
+  border-radius: 5px;
+  padding: 16px 16px 15px;
+}
+.st-card h3 { margin: 0 0 7px; font-size: 14px; color: var(--ink, #20344F); }
+.st-card p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.55; color: var(--ink3, #5A6875); }
+.st-card .st-why {
+  border-left: 2px solid var(--accent, #2F7A63);
+  padding-left: 10px;
+  margin-bottom: 14px;
+}
