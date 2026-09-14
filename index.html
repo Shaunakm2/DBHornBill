@@ -45,13 +45,16 @@
     <span class="sp"></span>
     <div class="tbar-r">
       <span id="bell-root"></span>
-      <a data-act="manage" id="mmode" hidden>Manage</a>
       <a data-act="training" id="tmode">Training</a>
       <a data-act="permissive" id="pmode">Rules</a>
       <a data-go="guide">Help</a>
-      <span class="who" id="whoami">A. Trainee</span>
-      <span class="avatar" id="avatar">AT</span>
-      <a data-act="signout" id="signout" hidden>Sign out</a>
+      <div class="acct" id="acct">
+        <button class="acct-btn" id="acct-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="who" id="whoami">A. Trainee</span>
+          <span class="avatar" id="avatar">AT</span>
+        </button>
+        <div class="acct-menu" id="acct-menu" hidden></div>
+      </div>
     </div>
   </div>
 
