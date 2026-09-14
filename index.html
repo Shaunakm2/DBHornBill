@@ -28,10 +28,10 @@
 <noscript><div style="padding:24px;font-family:system-ui,Arial,sans-serif">This training environment needs JavaScript enabled.</div></noscript>
 <div class="app">
   <div class="sandbox-mark">
-    <b>Practice environment.</b> Invented records, saved only in this browser. Not connected to any live system.
+    <span id="sandbox-note"><b>Practice environment.</b> Invented records. Not connected to any live system.</span>
     <span class="sp"></span>
     <button class="btn ghost sm" data-act="session">Session summary</button>
-    <button class="btn ghost sm" data-act="reset">Reset all data</button>
+    <button class="btn ghost sm" data-act="reset" id="btn-reset" hidden>Reset all data</button>
   </div>
 
   <div class="topbar">
@@ -45,11 +45,13 @@
     <span class="sp"></span>
     <div class="tbar-r">
       <span id="bell-root"></span>
+      <a data-act="manage" id="mmode" hidden>Manage</a>
       <a data-act="training" id="tmode">Training</a>
       <a data-act="permissive" id="pmode">Rules</a>
       <a data-go="guide">Help</a>
-      <span class="who">A. Trainee</span>
-      <span class="avatar">AT</span>
+      <span class="who" id="whoami">A. Trainee</span>
+      <span class="avatar" id="avatar">AT</span>
+      <a data-act="signout" id="signout" hidden>Sign out</a>
     </div>
   </div>
 
@@ -82,6 +84,7 @@
 <script src="vendor/supabase.js"></script>
 <script src="config.js"></script>
 <script src="sync.js"></script>
+<script src="admin.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
