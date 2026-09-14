@@ -40,16 +40,26 @@ setTimeout(() => {
   const a = admin.document, t = trainee.document;
   const am = a.getElementById('main').textContent;
   if (/did not load or could not run/.test(am)) fail('admin with no batch is left on the boot placeholder');
-  if (!/No batches yet/.test(am)) fail('admin with no batch is not told what to do');
+  if (!/Set up your first desk/.test(am)) fail('admin with no batch is not told what to do');
   if (!a.querySelector('[data-act="manage"]')) fail('admin cannot reach Manage to create the first batch');
-  if (a.getElementById('mmode') && a.getElementById('mmode').hidden) fail('the Manage link is hidden from the admin');
-  if (a.getElementById('signout') && a.getElementById('signout').hidden) fail('the admin cannot sign out');
+  if (!/before anyone joins/.test(am)) fail('the empty state does not say a desk can be built before trainees join');
+  const amenu = a.getElementById('acct-menu');
+  if (!amenu) fail('there is no account menu');
+  else {
+    if (!/data-acct="signout"/.test(amenu.innerHTML)) fail('sign out is not in the account menu');
+    if (!/data-acct="prefs"/.test(amenu.innerHTML)) fail('preferences are not in the account menu');
+    if (!/data-acct="manage"/.test(amenu.innerHTML)) fail('staff cannot reach administration from the account menu');
+  }
   if (/My Dashboard|Live job orders/.test(am)) fail('the seeded desk rendered for an admin with no batch');
 
   const tm = t.getElementById('main').textContent;
   if (/did not load or could not run/.test(tm)) fail('trainee with no batch is left on the boot placeholder');
   if (!/not on a batch yet/i.test(tm)) fail('trainee with no batch is not told why');
-  if (!t.getElementById('mmode').hidden) fail('the Manage link is visible to a trainee');
+  const tmenu = t.getElementById('acct-menu');
+  if (tmenu && /data-acct="manage"/.test(tmenu.innerHTML))
+    fail('a trainee is offered administration in their account menu');
+  if (tmenu && !/data-acct="signout"/.test(tmenu.innerHTML))
+    fail('a trainee cannot sign out');
 
   console.log(errors.length ? 'FAILURES:\n' + errors.map(e=>' - '+e).join('\n')
     : 'EMPTY-STATE BOOT CHECKS PASSED');
