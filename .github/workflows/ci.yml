@@ -39,6 +39,9 @@ jobs:
           check app.css     30000
           check app.js     300000
           check sync.js     15000
+          check staff.js    10000
+          check admin.js    15000
+          check vendor/xlsx.js 500000
           check signin.css   1500
           check config.js      80
           check vendor/supabase.js 100000
@@ -50,7 +53,7 @@ jobs:
       # client's IT team, so it is worth enforcing rather than asserting.
       - name: Check for third-party requests
         run: |
-          if grep -nE 'https?://' index.html app.css sync.js signin.css; then
+          if grep -nE 'https?://' index.html app.css sync.js signin.css staff.js admin.js; then
             echo ""
             echo "A shipped file references an external URL. Self-host it or remove it:"
             echo "a filtered corporate network may block it, and trainees would then"
