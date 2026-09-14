@@ -409,3 +409,37 @@ body.signed-out #signout { display: none; }
 .pref input { width: auto; margin: 2px 0 0; flex: none; }
 
 body.signed-out .acct { display: none; }
+
+/* An error raised while the Manage panel is open must appear in front of it.
+   A toast painted underneath the overlay is indistinguishable from the button
+   having done nothing. */
+.toasts { z-index: 90; }
+
+.ad-err {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 11px 34px 11px 13px;
+  border-radius: 4px;
+  background: #FBEEEA;
+  border: 1px solid #E8C4B8;
+  color: #8A3520;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ad-err b { font-weight: 600; }
+
+.ad-err-x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  appearance: none;
+  background: none;
+  border: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: #8A3520;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.ad-err-x:hover { background: rgba(138, 53, 32, .1); }
