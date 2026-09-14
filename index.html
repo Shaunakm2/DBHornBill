@@ -28,7 +28,7 @@
 <noscript><div style="padding:24px;font-family:system-ui,Arial,sans-serif">This training environment needs JavaScript enabled.</div></noscript>
 <div class="app">
   <div class="sandbox-mark">
-    <span id="sandbox-note"><b>Practice environment.</b> Invented records. Not connected to any live system.</span>
+    <span id="sandbox-note"><b>Practice environment.</b> Invented records — no real candidate or client data.</span>
     <span class="sp"></span>
     <button class="btn ghost sm" data-act="session">Session summary</button>
     <button class="btn ghost sm" data-act="reset" id="btn-reset" hidden>Reset all data</button>
@@ -62,16 +62,17 @@
     <nav class="side" id="rail"></nav>
     <main class="main" id="main"><div id="bootmsg" style="padding:28px 22px;font-family:system-ui,
       -apple-system,'Segoe UI',Arial,sans-serif;max-width:60em">
-      <h2 style="margin:0 0 8px;font-size:19px;color:#20344F">Loading the practice environment…</h2>
-      <p style="margin:0 0 14px;color:#5A6875;font-size:14px">If this message is still here after a
-      second or two, <b>app.js did not load or could not run</b>.</p>
+      <h2 style="margin:0 0 8px;font-size:19px;color:#20344F">Loading…</h2>
+      <div id="bootdiag" hidden>
+      <p style="margin:0 0 14px;color:#5A6875;font-size:14px">This is taking longer than it should.
+      If nothing happens, <b>app.js did not load or could not run</b>.</p>
       <ul style="margin:0;padding-left:20px;color:#5A6875;font-size:13.5px;line-height:1.7">
         <li><b>index.html</b>, <b>app.js</b> and <b>app.css</b> must sit in the <i>same folder</i>.</li>
         <li>File names are case sensitive on GitHub Pages: <code>app.js</code>, not <code>App.js</code>.</li>
         <li>Open <b>index.html</b> — not app.js.</li>
         <li>Hard refresh to clear a cached copy: Ctrl+Shift+R, or Cmd+Shift+R.</li>
         <li>Open the browser console (F12) — any error there names the real cause.</li>
-      </ul></div></main>
+      </ul></div></div></main>
     <aside class="coach" id="coach"></aside>
     <div id="fab-root"></div>
 <div id="fly-root"></div>
@@ -84,6 +85,14 @@
 
 <!-- Order matters: sync.js must define window.Store before app.js runs,
      because app.js calls Store.init() at the bottom of its own file. -->
+<script>
+/* A slow network is not a broken install. The troubleshooting notes appear
+   only after a normal sign-in would have completed. */
+setTimeout(function(){
+  var m=document.getElementById('main'), d=document.getElementById('bootdiag');
+  if(d && m && m.getAttribute('data-booted')!=='1') d.hidden=false;
+}, 4000);
+</script>
 <script src="vendor/supabase.js"></script>
 <script src="config.js"></script>
 <script src="sync.js"></script>
