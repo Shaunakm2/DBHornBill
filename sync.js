@@ -49,7 +49,12 @@
     ready: false,
     reason: 'Connecting…',
     lastSaved: null,
-    mode: 'remote'
+    mode: 'remote',
+    /* app.js checks both of these before it draws anything. On a shared desk
+       an unauthenticated visitor must see the sign-in card, not a dashboard
+       of invented records. */
+    needsAuth: true,
+    signedIn: false
   };
 
   /* ---------------------------------------------------------------- util */
@@ -557,6 +562,48 @@
   api.batch = function () { return batch; };
   api.signOut = Auth.signOut;
 
+  /* --------------------------------------------------------------- chrome */
+  /* The shell ships with wording and controls written for a single-player
+     build. Correct them once, here, rather than leaving a trainee to read
+     that their work is saved only in this browser when it is not. */
+  function dressShell() {
+    var note = document.getElementById('sandbox-note');
+    if (note) {
+      note.innerHTML = '<b>Practice environment.</b> Invented records on a shared ' +
+        'training desk. Your work is saved for you and visible to your trainer. ' +
+        'Not connected to any live system.';
+    }
+    var who = document.getElementById('whoami');
+    if (who) who.textContent = me.full_name + (batch ? ' · ' + batch.name : '');
+    var av = document.getElementById('avatar');
+    if (av) {
+      av.textContent = me.full_name.split(/\s+/).map(function (w) { return w[0]; })
+        .join('').slice(0, 2).toUpperCase();
+    }
+    var out = document.getElementById('signout');
+    if (out) out.hidden = false;
+    /* Creating accounts and batches is staff work. The check that matters is
+       server-side; hiding the link is only so trainees are not shown a door
+       that will not open. */
+    var mg = document.getElementById('mmode');
+    if (mg) mg.hidden = me.role === 'trainee';
+    /* Reset wiped the browser database. There is no such thing now. */
+    var rs = document.getElementById('btn-reset');
+    if (rs) rs.hidden = true;
+
+    document.body.classList.remove('signed-out');
+    document.body.classList.add('role-' + me.role);
+  }
+
+  /* Sign out and Manage are in the shell, which app.js does not own, so the
+     handler lives here. */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest && ev.target.closest('[data-act="signout"]');
+    if (a) { ev.preventDefault(); Auth.signOut(); return; }
+    var m = ev.target.closest && ev.target.closest('[data-act="manage"]');
+    if (m && window.ATSAdmin) { ev.preventDefault(); window.ATSAdmin.open(); }
+  });
+
   /* ------------------------------------------------------------ realtime */
   /* A shared desk has to move while you are looking at it. Without this the
      duplicate check is only as fresh as your last refresh. */
@@ -626,8 +673,10 @@
       return pull();
     }).then(function (d) {
       materialise(d);
+      dressShell();
       subscribe();
       api.available = true;
+      api.signedIn = true;
       api.ready = true;
       api.reason = 'Connected to ' + batch.name;
       api.lastSaved = new Date().toISOString();
@@ -677,6 +726,9 @@
   api.hydrateCVs = function () { return Promise.resolve(0); };
   api.putFile = function () { return Promise.resolve(); };
   api.countFiles = function () { return Promise.resolve(0); };
+
+  api.sb = function () { return sb; };
+  api.reload = function () { return pull().then(materialise).then(redraw); };
 
   window.Store = api;
   window.ATS = { auth: Auth, api: api };
