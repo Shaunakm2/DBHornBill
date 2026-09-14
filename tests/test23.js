@@ -33,8 +33,13 @@ function boot(profile, batches) {
   return w;
 }
 
-const admin = boot({id:'u1',role:'super_admin',full_name:'S Admin'}, []);
-const trainee = boot({id:'u1',role:'trainee',full_name:'Asha R',employee_id:'E1001'}, []);
+const admin = boot({id:'u1',role:'super_admin',full_name:'S Admin',is_active:true}, []);
+const trainee = boot({id:'u1',role:'trainee',full_name:'Asha R',employee_id:'E1001',is_active:true}, []);
+/* A deactivated account keeps its password and can still obtain a session.
+   The database refuses it everything, which on its own looks like a broken
+   build rather than a closed account. */
+const dead = boot({id:'u1',role:'trainee',full_name:'Gita M',employee_id:'E1007',is_active:false},
+                  [{id:'b1',name:'Batch 1',join_code:'B1',mode:'collaborative',status:'active'}]);
 
 setTimeout(() => {
   const a = admin.document, t = trainee.document;
@@ -60,6 +65,10 @@ setTimeout(() => {
     fail('a trainee is offered administration in their account menu');
   if (tmenu && !/data-acct="signout"/.test(tmenu.innerHTML))
     fail('a trainee cannot sign out');
+
+  const dm = dead.document.getElementById('main').textContent;
+  if (!/deactivated/i.test(dm)) fail('a deactivated account is not told why it cannot work');
+  if (/My Dashboard|Live job orders/.test(dm)) fail('a deactivated account still sees the desk');
 
   console.log(errors.length ? 'FAILURES:\n' + errors.map(e=>' - '+e).join('\n')
     : 'EMPTY-STATE BOOT CHECKS PASSED');
