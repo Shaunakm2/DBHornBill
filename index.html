@@ -22,6 +22,7 @@
      The stylesheet already names them first in --sans and --mono, so they will be picked up
      automatically once present. -->
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="signin.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:system-ui,Arial,sans-serif">This training environment needs JavaScript enabled.</div></noscript>
@@ -76,6 +77,11 @@
 <div id="tour-root"></div>
 <div id="modal-root"></div>
 
+<!-- Order matters: sync.js must define window.Store before app.js runs,
+     because app.js calls Store.init() at the bottom of its own file. -->
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
