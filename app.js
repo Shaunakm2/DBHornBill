@@ -3539,7 +3539,8 @@ function vDashboard(){
     '<div class="h"><h2>My Dashboard</h2><span class="sp"></span>'+
       '<div class="btnrow"><button class="btn ghost" data-act="note">Add Note</button>'+
       '<button class="btn" data-act="addnew">+ Add New</button></div></div>'+
-    '<p class="sub">'+fmtD(TODAY)+' \u00b7 A. Trainee \u00b7 Aurora and Halcyon desks</p>'+
+    '<p class="sub">'+fmtD(TODAY)+' \u00b7 '+esc(DB.me||'A. Trainee')+' \u00b7 '+
+      esc(DB.batchName||'Aurora and Halcyon desks')+'</p>'+
 
     '<div class="grid g4">'+
       met('Live job orders',openJobs().length,
@@ -3569,7 +3570,9 @@ function vDashboard(){
         '<p class="muted" style="font-size:12px;margin:11px 0 0">Percentages are stage-to-stage '+
         'conversion. The drop between two adjacent statuses is where the coaching conversation belongs.</p>'+
         '</div></div>'+
-      '<div class="card"><div class="card-h"><h4>Practice progress</h4></div><div class="card-b">'+
+      /* The scripted scenario is single-player content. A live batch measures
+         progress by what is on the desk. */
+      (DB.batchName ? '' : ('<div class="card"><div class="card-h"><h4>Practice progress</h4></div><div class="card-b">'+
         (DB.training===false
           ?'<div class="muted" style="font-size:13px">Training mode is off, so scenarios are hidden.</div>'
           :'<div class="kv"><dt>Scenario</dt><dd>'+esc(mine.sc.name)+'</dd>'+
@@ -3580,7 +3583,7 @@ function vDashboard(){
             '<dt>Actions recorded</dt><dd>'+DB.audit.length+'</dd></div>')+
         '<div class="btnrow" style="margin-top:13px">'+
         '<button class="btn ghost sm" data-act="assess">Knowledge check</button>'+
-        '<button class="btn ghost sm" data-act="session">Session summary</button></div></div></div>'+
+        '<button class="btn ghost sm" data-act="session">Session summary</button></div></div></div>'))+
     '</div>'+
 
     '<div class="sec grid g2">'+
