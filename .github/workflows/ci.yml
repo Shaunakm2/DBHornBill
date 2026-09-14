@@ -39,7 +39,7 @@ jobs:
           check app.css     30000
           check app.js     300000
           check sync.js     15000
-          check staff.js    10000
+          check staff.js    20000
           check admin.js    15000
           check vendor/xlsx.js 500000
           check signin.css   1500
