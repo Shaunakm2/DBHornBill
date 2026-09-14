@@ -33,8 +33,13 @@ var PIPE=[
 ];
 var PIPE_K=PIPE.map(function(s){return s.k;});
 var PIPE_OUT=['Client Declined','Candidate Declined','Not Proceeding'];
+/* Not terminal and not a rung: the submission is parked with the trainee
+   until they answer. It sits on the record as its own status so the
+   trainer queue can show what is blocked on whom. */
+var PIPE_HOLD=['Awaiting Trainee Response'];
 var pIx=function(k){return PIPE_K.indexOf(k);};
 var pColor=function(k){
+  if(k==='Awaiting Trainee Response')return 'var(--warn,#B8860B)';
   if(k==='Client Declined')return 'var(--bad)';
   if(k==='Candidate Declined')return '#B4553F';
   if(k==='Not Proceeding')return 'var(--ink3)';
@@ -619,143 +624,17 @@ function bsSearch(q){
   return {ast:ast,explain:bsExplain(ast),rows:rows};
 }
 
-/* ================================================================ local database */
-var Store=(function(){
-  var NAME='recruitment_ats_sandbox',VER=1,idb=null,timer=null;
-  var api={available:false,ready:false,lastSaved:null,reason:'not initialised'};
-  function open(){
-    return new Promise(function(res,rej){
-      var IDB=(typeof window!=='undefined')&&(window.indexedDB||window.mozIndexedDB||window.webkitIndexedDB);
-      if(!IDB){rej(new Error('This browser or preview frame does not expose IndexedDB.'));return;}
-      var rq;
-      try{rq=IDB.open(NAME,VER);}catch(e){rej(e);return;}
-      rq.onupgradeneeded=function(){
-        var d=rq.result;
-        if(!d.objectStoreNames.contains('state'))d.createObjectStore('state');
-        if(!d.objectStoreNames.contains('files'))d.createObjectStore('files');
-      };
-      rq.onsuccess=function(){idb=rq.result;api.available=true;res(idb);};
-      rq.onerror=function(){rej(rq.error||new Error('Could not open the local database.'));};
-      rq.onblocked=function(){rej(new Error('The local database is blocked by another open tab.'));};
-    });
-  }
-  function tx(store,mode,fn){
-    return new Promise(function(res,rej){
-      if(!idb){rej(new Error('No database'));return;}
-      var t=idb.transaction(store,mode),s=t.objectStore(store),out;
-      try{out=fn(s);}catch(e){rej(e);return;}
-      t.oncomplete=function(){res(out&&out.result!==undefined?out.result:out);};
-      t.onerror=function(){rej(t.error);};
-    });
-  }
-  api.init=function(){
-    return open().then(function(){
-      return tx('state','readonly',function(s){return s.get('current');});
-    }).then(function(rec){
-      api.ready=true;api.reason='Local database active';
-      return rec||null;
-    }).catch(function(e){
-      api.available=false;api.ready=true;api.reason=e.message||String(e);
-      return null;
-    });
-  };
-  /* Resume text is the bulk of the dataset, so it is stored per candidate rather than
-     inside the state record. Only changed resumes are rewritten. */
-  var cvDirty={},cvAll=false;
-  api.markCV=function(id){cvDirty[id]=true;};
-  api.markAllCV=function(){cvAll=true;};
-  function stripped(){
-    var out={},k;
-    for(k in DB){
-      if(k==='candidates')continue;
-      out[k]=DB[k];
-    }
-    out.candidates=DB.candidates.map(function(c){
-      var copy={},f;
-      for(f in c){
-        if(f==='cv')continue;
-        if(f==='files'){
-          copy.files=(c.files||[]).map(function(x){
-            var y={},g;for(g in x){if(g!=='text')y[g]=x[g];}return y;});
-          continue;
-        }
-        copy[f]=c[f];
-      }
-      return copy;
-    });
-    return out;
-  }
-  function writeCVs(){
-    if(!api.available)return Promise.resolve();
-    var ids=cvAll?DB.candidates.map(function(c){return c.id;}):Object.keys(cvDirty);
-    if(!ids.length)return Promise.resolve();
-    cvAll=false;cvDirty={};
-    return tx('files','readwrite',function(st){
-      ids.forEach(function(id){
-        var c=byId(DB.candidates,id);
-        if(!c)return;
-        if(c.cv)st.put(c.cv,'cv:'+id);else st.delete('cv:'+id);
-      });
-    }).catch(function(){});
-  }
-  api.save=function(force){
-    if(!api.available||!api.ready)return;
-    if(timer)clearTimeout(timer);
-    var run=function(){
-      timer=null;
-      var payload={savedAt:new Date().toISOString(),version:VER,data:stripped(),seq:SEQ};
-      tx('state','readwrite',function(s){return s.put(payload,'current');})
-        .then(function(){api.lastSaved=payload.savedAt;return writeCVs();})
-        .catch(function(e){api.available=false;api.reason='Save failed: '+(e.message||e);});
-    };
-    if(force)run();else timer=setTimeout(run,900);
-  };
-  api.hydrateCVs=function(){
-    if(!api.available)return Promise.resolve(0);
-    return new Promise(function(res){
-      var n=0;
-      try{
-        var t=idb.transaction('files','readonly'),st=t.objectStore('files');
-        var rq=st.openCursor();
-        rq.onsuccess=function(){
-          var cur=rq.result;
-          if(!cur){res(n);return;}
-          var k=String(cur.key||'');
-          if(k.indexOf('cv:')===0){
-            var c=byId(DB.candidates,k.slice(3));
-            if(c&&typeof cur.value==='string'){
-              c.cv=cur.value;n++;
-              (c.files||[]).forEach(function(f){if(f.isResume&&!f.text)f.text=cur.value;});
-            }
-          }
-          cur.continue();
-        };
-        rq.onerror=function(){res(n);};
-      }catch(e){res(n);}
-    });
-  };
-  api.load=function(){
-    if(!api.available)return Promise.resolve(null);
-    return tx('state','readonly',function(s){return s.get('current');});
-  };
-  api.clear=function(){
-    if(!api.available)return Promise.resolve();
-    return tx('state','readwrite',function(s){return s.delete('current');})
-      .then(function(){return tx('files','readwrite',function(s){return s.clear();});})
-      .then(function(){api.lastSaved=null;});
-  };
-  api.putFile=function(key,blob){
-    if(!api.available)return Promise.resolve();
-    return tx('files','readwrite',function(s){return s.put(blob,key);}).catch(function(){});
-  };
-  api.countFiles=function(){
-    if(!api.available)return Promise.resolve(0);
-    return tx('files','readonly',function(s){return s.count();}).catch(function(){return 0;});
-  };
-  return api;
-})();
+/* ================================================== shared-desk persistence */
+/* The browser database that used to live here has been removed. Persistence is
+   now sync.js, which defines window.Store before this file runs and speaks the
+   same contract: init, save, load, clear, markCV, hydrateCVs, putFile,
+   countFiles. Nothing else in this file needed to change to follow it. */
 
 /* ---------------------------------------------------------------- seed */
+/* Who is acting. Falls back to the seeded name while the desk is still being
+   built, because seed() runs before DB exists. */
+function whoami(){ return (typeof DB!=='undefined' && DB && DB.me) || 'A. Trainee'; }
+
 function seed(){
   SEQ={};
   var db={leads:[],opps:[],companies:[],contacts:[],candidates:[],jobs:[],subs:[],
@@ -892,15 +771,15 @@ function seed(){
 
   db.leads=[
     {id:uid('LD'),name:'Gregor Halloway',company:'Vantage Cold Chain',title:'Operations Director',
-     status:'New Lead',source:'Inbound web',owner:'A. Trainee',added:iso(dOff(-4)),mine:false,
+     status:'New Lead',source:'Inbound web',owner:whoami(),added:iso(dOff(-4)),mine:false,
      notes:'Downloaded the shift-coverage guide. 3 sites, 200 heads, uses two agencies today.'},
     {id:uid('LD'),name:'Marisol Reyes',company:'Cedarline Care Homes',title:'Regional Manager',
-     status:'In Process',source:'Referral',owner:'A. Trainee',added:iso(dOff(-11)),mine:false,
+     status:'In Process',source:'Referral',owner:whoami(),added:iso(dOff(-11)),mine:false,
      notes:'Referred by Samuel at Halcyon. Wants night cover across four homes from next quarter.'}
   ];
   db.opps=[
     {id:uid('OP'),title:'Night cover framework — 4 homes',companyId:c4.id,contactId:t6.id,
-     type:'Contract',status:'Open',value:180000,probability:40,closeDate:iso(dOff(30)),owner:'A. Trainee',mine:false}
+     type:'Contract',status:'Open',value:180000,probability:40,closeDate:iso(dOff(30)),owner:whoami(),mine:false}
   ];
 
   db.tearsheets=[
@@ -919,13 +798,17 @@ function seed(){
 
   db.tasks=[
     {id:uid('TK'),subject:'Chase client feedback on the East hub lead sendout',due:iso(dOff(0)),
-     priority:'High',owner:'A. Trainee',entity:'JO-1001',done:false,mine:false},
+     priority:'High',owner:whoami(),entity:'JO-1001',done:false,mine:false},
     {id:uid('TK'),subject:'Confirm interview logistics with the dispatcher candidate',due:iso(dOff(1)),
-     priority:'Medium',owner:'A. Trainee',entity:'JO-1002',done:false,mine:false},
+     priority:'Medium',owner:whoami(),entity:'JO-1002',done:false,mine:false},
     {id:uid('TK'),subject:'Collect outstanding onboarding documents for the North mall placement',due:iso(dOff(-2)),
-     priority:'High',owner:'A. Trainee',entity:'PL-1000',done:false,mine:false}
+     priority:'High',owner:whoami(),entity:'PL-1000',done:false,mine:false}
   ];
   generatePool(db);
+  /* The search pool is generated from a fixed seed, so it is identical on every
+     machine and costs nothing to reproduce. It is never written to the database.
+     A pool entry becomes a real row only when someone sources them. */
+  window.POOL=db.candidates.slice();
   /* The hand-written candidates need CVs too: a client submission is refused without one,
      so a seeded desk with no CVs would be unworkable. */
   (function(){
@@ -960,7 +843,7 @@ try{
 var SEEN={reports:false};
 
 function log(action,detail){
-  DB.audit.unshift({id:uid('AU'),at:new Date().toISOString(),by:'A. Trainee',action:action,detail:detail||''});
+  DB.audit.unshift({id:uid('AU'),at:new Date().toISOString(),by:whoami(),action:action,detail:detail||''});
 }
 function toast(msg,kind){
   var d=document.createElement('div');
@@ -1168,7 +1051,7 @@ A.addLead=function(){
     submit:'Save Lead',
     onSubmit:function(v){
       var l={id:uid('LD'),name:v.name,company:v.company,title:v.title,status:'New Lead',source:v.source,
-        owner:'A. Trainee',added:iso(TODAY),notes:v.notes,mine:true};
+        owner:whoami(),added:iso(TODAY),notes:v.notes,mine:true};
       DB.leads.push(l);
       log('Added Lead',l.name+' · '+l.company);
       toast('Lead saved','ok');go('lead',l.id);
@@ -1194,17 +1077,17 @@ A.convertLead=function(id){
     validate:function(v){var e={};if(v.email&&v.email.indexOf('@')<0)e.email='Enter a full email address.';return e;},
     submit:'Convert Lead',
     onSubmit:function(v){
-      var c={id:uid('CL'),name:v.coName,category:v.category,owner:'A. Trainee',status:v.coStatus,
+      var c={id:uid('CL'),name:v.coName,category:v.category,owner:whoami(),status:v.coStatus,
         since:iso(TODAY),employees:'—',mine:true};
       DB.companies.push(c);
-      var t={id:uid('CT'),companyId:c.id,name:v.ctName,title:v.ctTitle,status:'Active',owner:'A. Trainee',
+      var t={id:uid('CT'),companyId:c.id,name:v.ctName,title:v.ctTitle,status:'Active',owner:whoami(),
         primary:true,email:v.email,phone:v.phone,mine:true};
       DB.contacts.push(t);
       l.status='Converted';l.companyId=c.id;l.contactId=t.id;
       log('Converted Lead',l.name+' → '+c.name+' / '+t.name);
       if(v.makeOpp){
         var o={id:uid('OP'),title:'Requirement from '+c.name,companyId:c.id,contactId:t.id,type:'Contract',
-          status:'Open',value:60000,probability:30,closeDate:iso(dOff(30)),owner:'A. Trainee',mine:true};
+          status:'Open',value:60000,probability:30,closeDate:iso(dOff(30)),owner:whoami(),mine:true};
         DB.opps.push(o);
         log('Added Opportunity',o.title);
         toast('Lead converted, opportunity created','ok');go('opp',o.id);return;
@@ -1233,7 +1116,7 @@ A.addOpp=function(companyId){
     submit:'Save Opportunity',
     onSubmit:function(v){
       var o={id:uid('OP'),title:v.title,companyId:v.companyId,contactId:v.contactId,type:v.type,status:'Open',
-        value:Number(v.value),probability:Number(v.probability),closeDate:v.closeDate,owner:'A. Trainee',mine:true};
+        value:Number(v.value),probability:Number(v.probability),closeDate:v.closeDate,owner:whoami(),mine:true};
       DB.opps.push(o);
       log('Added Opportunity',o.title+' · '+coName(o.companyId));
       toast('Opportunity saved','ok');go('opp',o.id);
@@ -1283,7 +1166,7 @@ A.addContact=function(companyId){
     validate:function(v){var e={};if(v.email&&v.email.indexOf('@')<0)e.email='Enter a full email address.';return e;},
     submit:'Save Contact',
     onSubmit:function(v){
-      var c={id:uid('CT'),companyId:v.companyId,name:v.name,title:v.title,status:'Active',owner:'A. Trainee',
+      var c={id:uid('CT'),companyId:v.companyId,name:v.name,title:v.title,status:'Active',owner:whoami(),
         primary:!!v.primary,phone:v.phone,email:v.email,mine:true};
       DB.contacts.push(c);
       log('Added Contact',c.name+' at '+coName(c.companyId));
@@ -1347,7 +1230,7 @@ A.addJob=function(companyId,fromOpp){
         employmentType:v.employmentType,
         payRate:Number(v.payRate)||0,billRate:Number(v.billRate)||0,
         salary:Number(v.salary)||0,flatFee:Number(v.flatFee)||0,
-        location:v.location,owner:'A. Trainee',assignedUsers:['A. Trainee'],
+        location:v.location,owner:whoami(),assignedUsers:['A. Trainee'],
         added:iso(TODAY),startDate:v.startDate,duration:'6 months',published:false,
         description:v.description,mine:true,closedReason:null};
       DB.jobs.push(j);
@@ -1395,11 +1278,11 @@ A.setJobStatus=function(id){
         live.forEach(function(s){
           s.status='Not Proceeding';s.reason='Job order '+v.status.toLowerCase()+': '+v.reason;
           s.modified=new Date().toISOString();
-          s.history.push({status:'Not Proceeding',at:s.modified,by:'A. Trainee'});
+          s.history.push({status:'Not Proceeding',at:s.modified,by:whoami()});
         });
       }
       DB.notes.push({id:uid('NT'),action:'Other',text:'Status changed to '+v.status+'. '+v.reason,
-        at:new Date().toISOString(),by:'A. Trainee',links:{jobId:j.id,companyId:j.companyId},mine:true});
+        at:new Date().toISOString(),by:whoami(),links:{jobId:j.id,companyId:j.companyId},mine:true});
       log('Job order status → '+v.status,j.title);
       toast('Status updated','ok');render();
     }});
@@ -1467,7 +1350,7 @@ A.addCandidate=function(jobId){
         source:v.source||'',
         desiredRate:(v.desiredRate===''||v.desiredRate==null)?null:Number(v.desiredRate),
         availability:v.availability,
-        employmentPref:v.employmentPref,relocate:false,owner:'A. Trainee',added:iso(TODAY),
+        employmentPref:v.employmentPref,relocate:false,owner:whoami(),added:iso(TODAY),
         phone:v.phone,email:v.email,mine:true};
       DB.candidates.push(c);
       log('Added Candidate',c.name+' ('+c.id+')');
@@ -1499,15 +1382,26 @@ A.addToPipeline=function(jobId,candidateId){
     submit:'Add to pipeline',
     onSubmit:function(v){
       var now=new Date().toISOString();
-      var s={id:uid('SB'),jobId:v.jobId,candidateId:v.candidateId,status:'New Lead',owner:'A. Trainee',
-        added:now,modified:now,history:[{status:'New Lead',at:now,by:'A. Trainee'}],mine:true,
+      var s={id:uid('SB'),jobId:v.jobId,candidateId:v.candidateId,status:'New Lead',owner:whoami(),
+        added:now,modified:now,history:[{status:'New Lead',at:now,by:whoami()}],mine:true,
         screenNote:'',summary:'',payRate:null,billRate:null,sentTo:null,sendoutAt:null,
         apptId:null,startDate:null,reason:null};
+      markSourced(s.candidateId);
       DB.subs.push(s);
       log('Added to pipeline',candName(s.candidateId)+' → '+jobName(s.jobId));
       toast('Added at New Lead','ok');go('job',v.jobId,'pipeline');
     }});
 };
+
+/* Flags a pool candidate as one that now has to exist on the server. sync.js
+   pushes anything carrying this and leaves the rest of the pool alone. */
+function markSourced(candId){
+  var c=byId(DB.candidates,candId);
+  if(!c||c.remote||c.sourced)return;
+  c.sourced=true;
+  c.poolRef=c.poolRef||c.id;
+  c.source=c.source||'pool';
+}
 
 function stepSpec(sub,next){
   var job=byId(DB.jobs,sub.jobId);
@@ -1649,7 +1543,7 @@ function stepSpec(sub,next){
       }
       sub.startDate=v.startDate;
       DB.notes.push({id:uid('NT'),action:'Outbound Call',text:'Offer discussion: '+v.note,
-        at:new Date().toISOString(),by:'A. Trainee',
+        at:new Date().toISOString(),by:whoami(),
         links:{candidateId:cand.id,jobId:job.id},mine:true});
     }},
   'Placed':{
@@ -1686,7 +1580,7 @@ function stepSpec(sub,next){
       if(job.filled>=job.openings)job.status='Filled';
       cand.status='Placed';
       DB.tasks.push({id:uid('TK'),subject:'Complete onboarding pack for '+cand.name,due:v.startDate,
-        priority:'High',owner:'A. Trainee',entity:p.id,done:false,mine:true});
+        priority:'High',owner:whoami(),entity:p.id,done:false,mine:true});
       log('Created Placement',cand.name+' at '+coName(job.companyId)+' (Pending Approval)');
       notify('Placement created for '+cand.name+' \u2014 pending approval','placement',p.id);
     }}
@@ -1707,11 +1601,17 @@ A.advance=function(subId){
     fields:spec.fields,validate:spec.validate,submit:'Save and change status',
     onSubmit:function(v){
       spec.apply(v);
-      sub.status=next;sub.modified=new Date().toISOString();
-      sub.history.push({status:next,at:sub.modified,by:'A. Trainee'});
-      log('Submission status → '+next,candName(sub.candidateId)+' on '+jobName(sub.jobId));
-      toast(next==='Client Submission'?'Sendout recorded':'Status changed to '+next,'ok');
-      render();
+      /* The database owns the transition. A direct assignment here would be
+         refused by row-level security as a statement affecting zero rows, and
+         the person would be told it saved. This path always returns a reason. */
+      Store.advance(sub.id,next,{summary:sub.summary})
+        .then(function(){
+          sub.modified=new Date().toISOString();
+          log('Submission status → '+next,candName(sub.candidateId)+' on '+jobName(sub.jobId));
+          toast(next==='Client Submission'?'Sendout recorded':'Status changed to '+next,'ok');
+          render();
+        })
+        .catch(function(e){toast(e.message,'no');render();});
     }});
 };
 
@@ -1722,20 +1622,27 @@ A.reject=function(subId){
     fields:[
       {k:'status',label:'Outcome',type:'select',required:true,options:PIPE_OUT,
         hint:'Client Declined, Candidate Declined, or Not Proceeding where neither party formally declined.'},
+      {k:'reasonCode',label:'Category',type:'select',required:true,
+        options:['skills','writeup','rate','location','availability','screening',
+                 'comms','withdrew','filled','onhold'],
+        hint:'What the batch report counts. Pick the nearest; the detail goes below.'},
       {k:'reason',label:'Reason',type:'textarea',required:true,min:20,hint:'Specific and factual. "Not a fit" is not a reason.'}
     ],
     submit:'Close submission',
     onSubmit:function(v){
-      sub.status=v.status;sub.reason=v.reason;sub.modified=new Date().toISOString();
-      sub.history.push({status:v.status,at:sub.modified,by:'A. Trainee'});
-      var cand=byId(DB.candidates,sub.candidateId);
-      if(cand&&cand.status==='Submitted'){
-        var still=candSubs(cand.id).some(function(s){
-          return !!s.sendoutAt&&PIPE_OUT.indexOf(s.status)<0&&s.status!=='Placed';});
-        if(!still)cand.status='Active';
-      }
-      log('Submission closed as '+v.status,candName(sub.candidateId)+' on '+jobName(sub.jobId));
-      toast('Submission closed','ok');render();
+      Store.advance(sub.id,v.status,{note:v.reason,reasonCode:v.reasonCode})
+        .then(function(){
+          sub.reason=v.reason;sub.modified=new Date().toISOString();
+          var cand=byId(DB.candidates,sub.candidateId);
+          if(cand&&cand.status==='Submitted'){
+            var still=candSubs(cand.id).some(function(s){
+              return !!s.sendoutAt&&PIPE_OUT.indexOf(s.status)<0&&s.status!=='Placed';});
+            if(!still)cand.status='Active';
+          }
+          log('Submission closed as '+v.status,candName(sub.candidateId)+' on '+jobName(sub.jobId));
+          toast('Submission closed','ok');render();
+        })
+        .catch(function(e){toast(e.message,'no');render();});
     }});
 };
 
@@ -1781,7 +1688,7 @@ A.approvePlacement=function(id){
       p.approvalNote=v.reason;
       DB.notes.push({id:uid('NT'),action:'Internal Memo',
         text:'Placement '+v.decision+' by '+v.approver+'. '+v.reason,
-        at:new Date().toISOString(),by:'A. Trainee',
+        at:new Date().toISOString(),by:whoami(),
         links:{candidateId:p.candidateId,jobId:p.jobId,companyId:j.companyId},mine:true});
       log('Placement '+v.decision,candName(p.candidateId)+' \u00b7 margin '+Math.round(band.m)+
         '% \u00b7 by '+v.approver);
@@ -1912,7 +1819,7 @@ A.addNote=function(pre){
       var links={};
       ['candidateId','contactId','companyId','jobId'].forEach(function(k){if(v[k])links[k]=v[k];});
       DB.notes.push({id:uid('NT'),action:v.action,text:v.text,at:new Date().toISOString(),
-        by:'A. Trainee',links:links,mine:true});
+        by:whoami(),links:links,mine:true});
       log('Added Note ('+v.action+')',Object.keys(links).length+' record(s) linked');
       toast('Note saved','ok');render();
     }});
@@ -1982,7 +1889,7 @@ A.addTearsheet=function(){
     ],
     submit:'Save Tearsheet',
     onSubmit:function(v){
-      var t={id:uid('TR'),name:v.name,description:v.description,owner:'A. Trainee',
+      var t={id:uid('TR'),name:v.name,description:v.description,owner:whoami(),
         candidateIds:[],mine:true};
       DB.tearsheets.push(t);
       log('Added Tearsheet',t.name);
@@ -2795,7 +2702,7 @@ A.saveSearch=function(){
       hint:'For example "IT — AWS and Kubernetes, contract".'}],
     submit:'Save search',
     onSubmit:function(v){
-      DB.savedSearches.push({id:uid('SS'),name:v.name,q:searchRun.q,owner:'A. Trainee',
+      DB.savedSearches.push({id:uid('SS'),name:v.name,q:searchRun.q,owner:whoami(),
         added:iso(TODAY),mine:true});
       log('Saved search',v.name+' · '+searchRun.q);
       toast('Search saved','ok');render();
@@ -2849,7 +2756,7 @@ A.massNote=function(){
     onSubmit:function(v){
       ids.forEach(function(id){
         DB.notes.push({id:uid('NT'),action:v.action,text:v.text,at:new Date().toISOString(),
-          by:'A. Trainee',links:{candidateId:id},mine:true});
+          by:whoami(),links:{candidateId:id},mine:true});
       });
       log('Bulk note — '+ids.length+' candidates',v.action+': '+v.text.slice(0,60));
       toast('Note added to '+ids.length+' records','ok');
@@ -2895,8 +2802,9 @@ A.massPipeline=function(){
         if(['Do Not Call','Archive'].indexOf(c.status)>=0){blocked++;names.push(c.name+' ('+c.status+')');return;}
         if(DB.subs.some(function(s){return s.jobId===v.jobId&&s.candidateId===id;})){dup++;return;}
         var now=new Date().toISOString();
-        DB.subs.push({id:uid('SB'),jobId:v.jobId,candidateId:id,status:'New Lead',owner:'A. Trainee',
-          added:now,modified:now,history:[{status:'New Lead',at:now,by:'A. Trainee'}],mine:true,
+        markSourced(id);
+        DB.subs.push({id:uid('SB'),jobId:v.jobId,candidateId:id,status:'New Lead',owner:whoami(),
+          added:now,modified:now,history:[{status:'New Lead',at:now,by:whoami()}],mine:true,
           screenNote:'',summary:'',payRate:null,billRate:null,sentTo:null,sendoutAt:null,
           apptId:null,startDate:null,reason:null});
         added++;
@@ -3539,7 +3447,7 @@ function activityFor(candId){
       t:'Sent to '+ctName(sb.sentTo)+' for '+jobName(sb.jobId)});
   });
   DB.appts.filter(function(a){return a.candidateId===candId;}).forEach(function(a){
-    out.push({at:a.at,by:'A. Trainee',kind:'Appointment',
+    out.push({at:a.at,by:whoami(),kind:'Appointment',
       t:a.subject+' \u00b7 '+a.location+' \u00b7 '+a.attendees});
   });
   DB.placements.filter(function(p){return p.candidateId===candId;}).forEach(function(p){
@@ -5404,7 +5312,7 @@ A.email=function(ctx){
     if(v._j)links.jobId=v._j.id;
     DB.notes.push({id:uid('NT'),action:'Email',
       text:'Email to '+to+' — '+subj+(cvBox&&cvBox.checked?' (CV attached)':'')+'\n\n'+body,
-      at:new Date().toISOString(),by:'A. Trainee',links:links,mine:true,
+      at:new Date().toISOString(),by:whoami(),links:links,mine:true,
       email:{to:to,cc:cc,subject:subj,attached:!!(cvBox&&cvBox.checked)}});
     log('Sent email','to '+to+' — '+subj);
     notify('Email sent to '+(toName||to)+': '+subj,
@@ -5429,7 +5337,7 @@ function resumeFile(c){
 }
 function addFile(c,name,type,isResume,text){
   var f={id:uid('FL'),name:name,type:type||'Resume',isResume:!!isResume,
-    at:new Date().toISOString(),by:'A. Trainee',text:text||''};
+    at:new Date().toISOString(),by:whoami(),text:text||''};
   fileList(c).unshift(f);
   return f;
 }
@@ -6733,6 +6641,17 @@ window.addEventListener('error',function(ev){bootFail('running',ev.error||ev.mes
 window.addEventListener('unhandledrejection',function(ev){bootFail('loading saved data',ev.reason);});
 
 try{ render(); }catch(e){ bootFail('drawing the first screen',e); }
+
+/* The only surface sync.js is allowed to touch. Kept deliberately small: a
+   persistence layer needs the model, a redraw and a way to speak to the
+   person, and nothing else in this file is its business. */
+window.APP={
+  get DB(){return DB;},
+  set DB(v){DB=v;},
+  get SEQ(){return SEQ;},
+  set SEQ(v){SEQ=v;},
+  render:render, toast:toast, byId:byId, notify:notify
+};
 
 Store.init().then(function(rec){
   if(rec&&rec.data&&rec.data.candidates){
