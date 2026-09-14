@@ -36,8 +36,12 @@ setTimeout(() => {
   if (!d.querySelector('.signin-card')) fail('the sign-in card is not on the page');
   if (/My Dashboard|Live job orders/.test(main)) fail('the desk rendered over the sign-in screen');
   if (d.querySelector('.fab')) fail('the practice-tasks button is visible signed out');
-  if (/saved only in this browser/.test(d.getElementById('sandbox-note').textContent))
-    fail('the banner still claims the data is browser-only');
+  const note = d.getElementById('sandbox-note').textContent;
+  if (/saved only in this browser/.test(note)) fail('the banner still claims the data is browser-only');
+  /* The troubleshooting notes are a diagnosis. Showing them during a normal
+     sign-in tells everyone their install is broken when it is fine. */
+  const diag = d.getElementById('bootdiag');
+  if (diag && !diag.hidden) fail('the troubleshooting notes show during a normal load');
   /* Signed out the account menu is present but empty and hidden; it is filled
      in at sign-in. What matters here is that the shell offers no identity and
      no controls to someone who has not signed in. */
