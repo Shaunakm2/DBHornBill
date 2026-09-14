@@ -11,11 +11,32 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TRAINEE_DOMAIN = Deno.env.get("TRAINEE_EMAIL_DOMAIN") ?? "trainees.invalid";
 
-const cors = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+/* Origins are compared after normalising: a trailing slash on the secret is
+   the commonest way this breaks, and the browser compares the header to the
+   Origin byte for byte. Several origins may be listed, comma separated, so a
+   staging copy or a local build can be allowed alongside the live site. */
+const ALLOWED = (Deno.env.get("ALLOWED_ORIGIN") ?? "*")
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, "").toLowerCase())
+  .filter(Boolean);
+
+function corsFor(req: Request): Record<string, string> {
+  const origin = (req.headers.get("Origin") ?? "").replace(/\/+$/, "");
+  const allow = ALLOWED.includes("*")
+    ? "*"
+    : ALLOWED.includes(origin.toLowerCase())
+      ? origin                       // echo it back exactly as sent
+      : ALLOWED[0] ?? "";
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
+
+let cors: Record<string, string> = {};
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -25,6 +46,7 @@ const randomPassword = () =>
     .join("");
 
 Deno.serve(async (req) => {
+  cors = corsFor(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -49,7 +71,7 @@ Deno.serve(async (req) => {
   switch (action) {
     // ------------------------------------------------ create a trainer or admin
     case "create_staff": {
-      const { email, full_name, role } = body;
+      const { email, full_name, role, employee_id } = body;
       if (!email || !full_name || !["trainer", "super_admin"].includes(role)) {
         return json({ error: "Need an email, a name and a role of trainer or super_admin." }, 400);
       }
@@ -60,7 +82,11 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 400);
 
       await admin.from("profiles").insert({
-        id: created.user.id, role, full_name, email, created_by: caller.user.id,
+        id: created.user.id, role, full_name, email,
+        /* Optional for staff: they sign in with an email, but the employee
+           number is what L&D reporting joins on, so it is worth capturing. */
+        employee_id: employee_id ? String(employee_id).trim().toUpperCase() : null,
+        created_by: caller.user.id,
       });
       // Returned once, shown once, never stored anywhere the browser can reach.
       return json({ user_id: created.user.id, email, temporary_password: password });
