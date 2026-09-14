@@ -126,3 +126,8 @@ jobs:
 
       - name: Run policy and workflow tests
         run: psql -d ats -v ON_ERROR_STOP=1 -f tests/01_policies.sql
+
+      # The whole population, every role against every batch state. Three of
+      # the bugs in this system were found here and nowhere else.
+      - name: Run the smoke test
+        run: psql -d ats -v ON_ERROR_STOP=1 -f tests/02_smoke.sql
