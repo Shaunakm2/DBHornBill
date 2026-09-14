@@ -562,6 +562,20 @@
   api.batch = function () { return batch; };
   api.signOut = Auth.signOut;
 
+  /* --------------------------------------------------------------- screens */
+  /* Anything that stops the desk loading has to replace the boot placeholder.
+     Leaving it up tells the person "app.js did not load", which sends them
+     hunting for a file problem that is not there. */
+  function screen(title, body, buttons) {
+    var main = document.getElementById('main');
+    if (!main) return;
+    main.innerHTML = '<div class="ad-empty" style="padding:44px 8px;max-width:38em">' +
+      '<h3 style="font-size:17px">' + esc(title) + '</h3>' +
+      '<p>' + body + '</p>' +
+      (buttons || '') + '</div>';
+    main.setAttribute('data-booted', '1');
+  }
+
   /* --------------------------------------------------------------- chrome */
   /* The shell ships with wording and controls written for a single-player
      build. Correct them once, here, rather than leaving a trainee to read
@@ -574,7 +588,7 @@
         'Not connected to any live system.';
     }
     var who = document.getElementById('whoami');
-    if (who) who.textContent = me.full_name + (batch ? ' · ' + batch.name : '');
+    if (who) who.textContent = me.full_name + (batch ? ' \u00b7 ' + batch.name : '');
     var av = document.getElementById('avatar');
     if (av) {
       av.textContent = me.full_name.split(/\s+/).map(function (w) { return w[0]; })
@@ -661,7 +675,25 @@
     }).then(function (r) {
       if (r.error) throw r.error;
       var rows = r.data || [];
-      if (!rows.length) throw new Error('You are not on an active batch yet.');
+      if (!rows.length) {
+        /* Staff land here on day one: there is nothing to load because
+           nothing has been created yet. Treating that as an error locked the
+           administrator out of the only screen that could fix it. */
+        if (me.role === 'trainee') {
+          dressShell();
+          screen('You are not on a batch yet',
+            'Your account exists, but no trainer has added you to a live batch. ' +
+            'Check the batch code you were given, or ask your trainer to add you.',
+            '<button class="btn ghost" data-act="signout">Sign out</button>');
+        } else {
+          dressShell();
+          screen('No batches yet',
+            'A batch is a group of trainees working one shared desk. Create one, ' +
+            'add the trainees who will work it, then give them the batch code.',
+            '<button class="btn" data-act="manage">Create the first batch</button>');
+        }
+        return Promise.reject({ handled: true });
+      }
       var remembered = null;
       try { remembered = sessionStorage.getItem('ats_batch'); } catch (e) {}
       var pick = rows.filter(function (b) { return b.id === remembered; })[0];
@@ -685,7 +717,12 @@
       if (e && e.handled) throw e;
       api.ready = true;
       fail('Startup', e);
-      throw e;
+      screen('The desk could not be loaded',
+        esc((e && e.message) || String(e)) +
+        '<br><br>If this mentions a policy or a missing table, the database ' +
+        'migrations may not all have been applied.',
+        '<button class="btn ghost" data-act="signout">Sign out</button>');
+      throw { handled: true };
     });
   };
 
@@ -728,7 +765,13 @@
   api.countFiles = function () { return Promise.resolve(0); };
 
   api.sb = function () { return sb; };
-  api.reload = function () { return pull().then(materialise).then(redraw); };
+  api.reload = function () {
+    /* Called when the Manage panel closes. If the desk never loaded because
+       there was no batch, there is nothing to refresh — start the whole boot
+       again so the new batch is picked up. */
+    if (!batch) { location.reload(); return Promise.resolve(); }
+    return pull().then(materialise).then(redraw);
+  };
 
   window.Store = api;
   window.ATS = { auth: Auth, api: api };
