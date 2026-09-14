@@ -25,6 +25,15 @@
   'use strict';
 
   var CFG = window.ATS_CONFIG || {};
+
+  /* app.js is an IIFE under "use strict": its DB, render and toast are private
+     to it and are reached through the small bridge it publishes as window.APP.
+     Until app.js has run, that bridge does not exist, so every use goes through
+     these accessors rather than a captured reference. */
+  function APP() { return window.APP || {}; }
+  function db() { return APP().DB; }
+  function redraw() { if (APP().render) APP().render(); }
+  function say(msg, kind) { if (APP().toast) APP().toast(msg, kind); }
   var sb = null;                 // supabase client
   var session = null;
   var me = null;                 // { id, role, full_name, employee_id }
@@ -59,7 +68,7 @@
     var msg = (e && (e.message || e.error_description)) || String(e || 'unknown');
     api.available = false;
     api.reason = where + ': ' + msg;
-    if (window.toast) window.toast(api.reason, 'no');
+    say(api.reason, 'no');
     console.error('[sync] ' + where, e);
   }
 
@@ -277,7 +286,7 @@
   }
 
   function materialise(d) {
-    var DB = window.DB;
+    var DB = db();
     idMap = { toServer: {}, toLocal: {} };
 
     DB.companies = d.companies.map(function (c) {
@@ -452,12 +461,10 @@
         var row = r.data && r.data[0];
         var who = row ? row.owner_name : 'someone else';
         var when = row ? new Date(row.submitted).toLocaleDateString() : 'earlier';
-        var i = window.DB.subs.indexOf(s);
-        if (i >= 0) window.DB.subs.splice(i, 1);
-        if (window.toast) {
-          window.toast(who + ' already submitted this candidate to this job on ' + when +
-            '. Check the pipeline before sourcing.', 'no');
-        }
+        var i = db().subs.indexOf(s);
+        if (i >= 0) db().subs.splice(i, 1);
+        say(who + ' already submitted this candidate to this job on ' + when +
+          '. Check the pipeline before sourcing.', 'no');
       });
   }
 
@@ -489,7 +496,7 @@
   api.advance = function (subId, toLabel, extra) {
     extra = extra || {};
     var s = null;
-    window.DB.subs.forEach(function (x) { if (x.id === subId) s = x; });
+    db().subs.forEach(function (x) { if (x.id === subId) s = x; });
     var code = TO_CODE[toLabel];
     if (!code) return Promise.reject(new Error('Unknown stage: ' + toLabel));
 
@@ -564,7 +571,7 @@
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + me.id },
         function (p) {
-          if (window.toast) window.toast(p.new.body, 'ok');
+          say(p.new.body, 'ok');
           refresh();
         })
       .subscribe();
@@ -579,7 +586,7 @@
       if (pushing) return;
       pull().then(function (d) {
         materialise(d);
-        if (window.render) window.render();
+        redraw();
       }).catch(function (e) { fail('Refresh', e); });
     }, 400);
   }
@@ -635,13 +642,13 @@
 
   api.save = function (force) {
     if (!api.available) return;
-    if (window.DB && window.DB.readOnly) {
-      if (window.toast) window.toast('This batch is archived. It can be read but not changed.', 'no');
+    if (db() && db().readOnly) {
+      say('This batch is archived. It can be read but not changed.', 'no');
       return;
     }
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      var DB = window.DB;
+      var DB = db();
       pushing = true;
       pushCandidates(DB)
         .then(function () { return pushSubmissions(DB); })
@@ -649,7 +656,7 @@
         .then(function () {
           api.lastSaved = new Date().toISOString();
           pushing = false;
-          if (window.render) window.render();
+          redraw();
         })
         .catch(function (e) { pushing = false; fail('Save', e); });
     }, force ? 0 : 600);
@@ -658,10 +665,8 @@
   api.load = function () { return pull().then(materialise); };
 
   api.clear = function () {
-    if (window.toast) {
-      window.toast('This desk is shared, so nothing here is yours alone to reset. ' +
-        'Ask your trainer to archive the batch and start a new one.', 'no');
-    }
+    say('This desk is shared, so nothing here is yours alone to reset. ' +
+      'Ask your trainer to archive the batch and start a new one.', 'no');
     return Promise.resolve();
   };
 
