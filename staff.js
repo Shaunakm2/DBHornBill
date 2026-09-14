@@ -30,7 +30,31 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function redraw() { if (window.APP && window.APP.render) window.APP.render(); }
+  /* A background load finishing must not replace the view while somebody is
+     using a control on it. Opening Reports starts a fetch; roughly a second
+     later it resolved and redrew the page, closing whatever dropdown had been
+     opened in the meantime. The data still arrives — the repaint waits until
+     the control is let go. */
+  function busyControl() {
+    var a = document.activeElement;
+    if (!a || a === document.body) return false;
+    var t = (a.tagName || '').toLowerCase();
+    if (t !== 'select' && t !== 'input' && t !== 'textarea') return false;
+    return !!(a.closest && a.closest('#main'));
+  }
+
+  var pendingRedraw = null;
+
+  function redraw() {
+    if (busyControl()) {
+      clearTimeout(pendingRedraw);
+      pendingRedraw = setTimeout(redraw, 600);
+      return;
+    }
+    clearTimeout(pendingRedraw);
+    pendingRedraw = null;
+    if (window.APP && window.APP.render) window.APP.render();
+  }
   function say(m, k) { if (window.APP && window.APP.toast) window.APP.toast(m, k); }
 
   function A() { return window.ATSAdmin || {}; }
