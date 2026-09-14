@@ -1,0 +1,128 @@
+name: ci
+
+# Runs on every push and pull request, and can be started by hand from the
+# Actions tab. Two jobs: the application suites, and the database policies.
+# They are independent, so a broken policy does not hide a broken screen.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ------------------------------------------------------------------ app
+  app:
+    name: Application suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # A truncated upload is the failure that produced a blank page once
+      # before, so fail fast and say so plainly rather than letting the
+      # suites report it obscurely.
+      - name: Check the application files are present and complete
+        run: |
+          fail=0
+          check() {
+            if [ ! -f "$1" ]; then echo "MISSING: $1"; fail=1; return; fi
+            size=$(wc -c < "$1")
+            if [ "$size" -lt "$2" ]; then
+              echo "TRUNCATED: $1 is $size bytes, expected at least $2"; fail=1
+            else
+              echo "ok: $1 ($size bytes)"
+            fi
+          }
+          check index.html   3000
+          check app.css     30000
+          check app.js     300000
+          check sync.js     15000
+          check signin.css   1500
+          check config.js      80
+          check vendor/supabase.js 100000
+          if [ ! -d tests ]; then echo "MISSING: tests/ directory"; fail=1; fi
+          exit $fail
+
+      # The page must not reach outside itself except to the one Supabase
+      # project it is configured for. That is the argument being made to the
+      # client's IT team, so it is worth enforcing rather than asserting.
+      - name: Check for third-party requests
+        run: |
+          if grep -nE 'https?://' index.html app.css sync.js signin.css; then
+            echo ""
+            echo "A shipped file references an external URL. Self-host it or remove it:"
+            echo "a filtered corporate network may block it, and trainees would then"
+            echo "see a different build from the one that was signed off."
+            echo "config.js is exempt: the project URL belongs there."
+            exit 1
+          fi
+          echo "ok: no external requests outside config.js"
+
+      # The anon key in config.js is public by design and carries no
+      # privileges. The service_role key bypasses every policy in the
+      # project. If one ever reaches a file the browser downloads, the whole
+      # security model is decorative.
+      - name: Check no service key is committed
+        run: |
+          if grep -rInE "sb_secret_[A-Za-z0-9_-]{10,}" \
+               --include='*.js' --include='*.html' --include='*.json' \
+               --exclude-dir=functions --exclude-dir=node_modules . ; then
+            echo ""
+            echo "A service key is committed outside the Edge Functions."
+            echo "Rotate it in the Supabase dashboard, then move it to a function secret."
+            exit 1
+          fi
+          if grep -rIn "SUPABASE_SERVICE_ROLE_KEY" \
+               --include='*.js' --include='*.html' \
+               --exclude-dir=functions --exclude-dir=node_modules . ; then
+            echo ""
+            echo "A browser file refers to the service role key. It must not."
+            exit 1
+          fi
+          echo "ok: no service key outside supabase/functions"
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm install --no-audit --no-fund
+
+      - name: Run all suites and audits
+        working-directory: tests
+        run: npm test
+
+  # ------------------------------------------------------------- database
+  database:
+    name: Database policies
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      # The policies are the security model. Reasoning about them is not the
+      # same as running them: two of the bugs found while writing this schema
+      # were forbidden writes that succeeded while affecting zero rows.
+      - name: Apply migrations
+        run: bash tests/run_local.sh
+
+      - name: Run policy and workflow tests
+        run: psql -d ats -v ON_ERROR_STOP=1 -f tests/01_policies.sql
