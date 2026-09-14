@@ -310,6 +310,48 @@ select be('b001');
 select s_ok((select count(*) from v_trainee_scorecard where employee_id='S1002')=1,
             'in a collaborative batch a trainee can see a colleague''s scorecard row');
 
+\echo ''
+\echo '=== 11. staff reporting =========================================='
+select be('a011');
+select s_ok((select count(*) from public.rpt_batches() where join_code like 'SMOKE%')=3,
+            'a trainer can read the numbers for every batch');
+select s_ok((select bool_and(mine) from public.rpt_batches()
+             where join_code in ('SMOKE1','SMOKE3')),
+            'their own batches are flagged as theirs');
+select s_ok((select mine from public.rpt_batches() where join_code='SMOKE2')=false,
+            'another trainer''s batch is flagged as not theirs');
+select s_ok((select trainees from public.rpt_batches() where join_code='SMOKE1')=4,
+            'the batch summary counts trainees');
+select s_ok((select sent_to_client from public.rpt_batches() where join_code='SMOKE1')=1,
+            'and counts what reached the client');
+
+-- Read-only means read-only: the numbers for another trainer's batch are
+-- visible, the records behind them are not.
+select s_ok((select count(*) from candidates
+             where batch_id='00000000-0000-0000-0000-11111111c002')=0,
+            'a trainer still cannot read another batch''s candidate records');
+
+select s_ok((select count(*) from public.rpt_scorecard() where employee_id like 'S10%')>=5,
+            'the scorecard covers every batch the trainer may report on');
+select s_ok((select count(*) from public.rpt_scorecard(
+              '00000000-0000-0000-0000-11111111c001'))=4,
+            'the scorecard can be narrowed to one batch');
+select s_ok((select count(*) from public.rpt_activity()) > 0,'the activity report returns rows');
+select s_ok((select count(*) from public.rpt_queue()) >= 1,'the queue report returns rows');
+
+select be('a001');
+select s_ok((select count(*) from public.rpt_batches() where join_code like 'SMOKE%')=3,
+            'the administrator sees the same batch summary');
+
+-- A trainee must not be able to report across other people's desks.
+select be('b001');
+select s_blocked($$select count(*) from public.rpt_batches()$$,
+  'a trainee cannot run the batch summary');
+select s_blocked($$select count(*) from public.rpt_scorecard()$$,
+  'a trainee cannot run the scorecard report');
+select s_blocked($$select count(*) from public.rpt_activity()$$,
+  'a trainee cannot run the activity report');
+
 reset role;
 \echo ''
 \echo 'SMOKE TEST COMPLETE'
