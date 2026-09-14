@@ -329,6 +329,36 @@ select t_blocked($$
   'a trainer cannot add people to someone else''s batch','policy');
 
 \echo ''
+\echo '-- 7c. the API surface ---------------------------------------------'
+-- Everything the browser calls has to exist in public. Defined only in app,
+-- these returned 404 through the REST API, and a 404 arrives as an empty
+-- result rather than an error — which is why the roster silently showed
+-- nobody rather than saying anything was wrong.
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false);
+select t_ok((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+             where n.nspname='public'
+               and p.proname in ('roster','advance_submission','existing_submission',
+                                 'candidate_duplicates','trainee_login_lookup','record_login'))=6,
+            'every function the client calls is exposed through public');
+select t_ok((select count(*) from public.roster())>=5,
+            'the roster is readable through the public wrapper');
+select t_ok((select owner_name from public.existing_submission(
+              '00000000-0000-0000-0000-00000000d003',
+              '00000000-0000-0000-0000-00000000e001'))='Asha R',
+            'the duplicate lookup works through the public wrapper');
+
+-- The credential lookup must never be reachable from a browser session.
+select t_ok(not has_function_privilege('authenticated',
+              'public.trainee_login_lookup(text,text)','execute'),
+            'a signed-in browser session cannot read stored credentials');
+select t_ok(not has_function_privilege('anon',
+              'public.trainee_login_lookup(text,text)','execute'),
+            'an anonymous caller cannot read stored credentials');
+select t_ok(has_function_privilege('service_role',
+              'public.trainee_login_lookup(text,text)','execute'),
+            'the sign-in function can still read them with the service key');
+
+\echo ''
 \echo '-- 8. archive is enforced by the database --------------------------'
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a2',false);
 update batches set status='archived', archived_at=now()
