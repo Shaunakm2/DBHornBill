@@ -20,6 +20,17 @@ do $do$ begin
   if not exists (select 1 from pg_roles where rolname = 'app_user') then
     create role app_user nologin;
   end if;
+  -- Supabase's own roles. Created here only so the grant checks in the tests
+  -- can assert who may execute what.
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin;
+  end if;
 end $do$;
 SQL
 
@@ -35,6 +46,10 @@ grant select, insert, update, delete on all tables in schema public to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant execute on all functions in schema app to app_user;
 grant execute on all functions in schema auth to app_user;
+-- In Supabase a signed-in browser session runs as `authenticated`. Making the
+-- test role a member of it means the grants the tests assert are the grants
+-- the tests are actually subject to.
+grant authenticated to app_user;
 SQL
 
 echo "-- schema applied"
