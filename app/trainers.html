@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-base="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Trainers · GG Learning Labs</title>
+<meta name="robots" content="noindex">
+<script>
+  (function () {
+    try {
+      var p = localStorage.getItem('ggl.theme');
+      var dark = p === 'dark' || (!p && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+  })();
+</script>
+<link rel="stylesheet" href="../assets/css/main.css">
+<link rel="stylesheet" href="../assets/css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Raleway:wght@500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="app" id="app-root">
+<script>window.GGL_PAGE = 'trainers';</script>
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/services.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="../assets/js/pages.js"></script>
+</body>
+</html>

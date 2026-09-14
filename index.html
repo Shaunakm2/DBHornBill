@@ -1,106 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+
+<html data-base="./" lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recruitment ATS — practice environment</title>
-<!-- No third-party requests. Fonts come from the operating system, so this page works on a
-     network with egress filtering and reaches nothing outside itself.
-
-     To use Archivo and IBM Plex Mono instead, download them, drop the .woff2 files in a fonts/
-     folder beside this file, and add:
-
-     <style>
-       @font-face{font-family:Archivo;src:url(fonts/Archivo-Regular.woff2) format('woff2');
-         font-weight:400;font-display:swap}
-       @font-face{font-family:Archivo;src:url(fonts/Archivo-SemiBold.woff2) format('woff2');
-         font-weight:600;font-display:swap}
-       @font-face{font-family:'IBM Plex Mono';src:url(fonts/IBMPlexMono-Regular.woff2) format('woff2');
-         font-weight:400;font-display:swap}
-     </style>
-
-     The stylesheet already names them first in --sans and --mono, so they will be picked up
-     automatically once present. -->
-<link rel="stylesheet" href="app.css">
-<link rel="stylesheet" href="signin.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+<title>GG Learning Labs | Capability Operating System for L&amp;D</title>
+<meta content="GG Learning Labs connects needs, learning, assessment, coaching, observation and effectiveness so L&amp;D teams can manage capability, not just course completion." name="description"/>
+<meta content="#f6f7f9" name="theme-color"/>
+<meta content="GG Learning Labs | One workspace for everything L&amp;D" property="og:title"/>
+<meta content="Plan. Develop. Assess. Coach. Measure. Improve." property="og:description"/>
+<meta content="website" property="og:type"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750&amp;display=swap" rel="stylesheet"/>
+<link href="assets/css/main.css" rel="stylesheet"/>
+<link href="assets/css/product-site.css" rel="stylesheet"/>
+<script>(function(){try{var t=localStorage.getItem('ggl.theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){document.documentElement.dataset.theme='light'}})()</script>
 </head>
-<body>
-<noscript><div style="padding:24px;font-family:system-ui,Arial,sans-serif">This training environment needs JavaScript enabled.</div></noscript>
-<div class="app">
-  <div class="sandbox-mark">
-    <span id="sandbox-note"><b>Practice environment.</b> Invented records — no real candidate or client data.</span>
-    <span class="sp"></span>
-    <button class="btn ghost sm" data-act="session" id="btn-session">Session summary</button>
-    <button class="btn ghost sm" data-act="reset" id="btn-reset" hidden>Reset all data</button>
-  </div>
-
-  <div class="topbar">
-    <div class="appname">Recruit<span>practice build</span></div>
-    <div class="ff">
-      <input id="ff" type="text" placeholder="Find — name, company, job order" autocomplete="off" aria-label="Find">
-      <div id="ff-res"></div>
-    </div>
-    <button class="pillbtn" data-act="addnew" aria-label="Add a new record">
-      <span class="circ"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></span>Add</button>
-    <span class="sp"></span>
-    <div class="tbar-r">
-      <span id="bell-root"></span>
-      <a data-act="training" id="tmode">Training</a>
-      <a data-act="permissive" id="pmode">Rules</a>
-      <a data-go="guide">Help</a>
-      <div class="acct" id="acct">
-        <button class="acct-btn" id="acct-btn" aria-haspopup="true" aria-expanded="false">
-          <span class="who" id="whoami">A. Trainee</span>
-          <span class="avatar" id="avatar">AT</span>
-        </button>
-        <div class="acct-menu" id="acct-menu" hidden></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="body">
-    <nav class="side" id="rail"></nav>
-    <main class="main" id="main"><div id="bootmsg" style="padding:28px 22px;font-family:system-ui,
-      -apple-system,'Segoe UI',Arial,sans-serif;max-width:60em">
-      <h2 style="margin:0 0 8px;font-size:19px;color:#20344F">Loading…</h2>
-      <div id="bootdiag" hidden>
-      <p style="margin:0 0 14px;color:#5A6875;font-size:14px">This is taking longer than it should.
-      If nothing happens, <b>app.js did not load or could not run</b>.</p>
-      <ul style="margin:0;padding-left:20px;color:#5A6875;font-size:13.5px;line-height:1.7">
-        <li><b>index.html</b>, <b>app.js</b> and <b>app.css</b> must sit in the <i>same folder</i>.</li>
-        <li>File names are case sensitive on GitHub Pages: <code>app.js</code>, not <code>App.js</code>.</li>
-        <li>Open <b>index.html</b> — not app.js.</li>
-        <li>Hard refresh to clear a cached copy: Ctrl+Shift+R, or Cmd+Shift+R.</li>
-        <li>Open the browser console (F12) — any error there names the real cause.</li>
-      </ul></div></div></main>
-    <aside class="coach" id="coach"></aside>
-    <div id="fab-root"></div>
-<div id="fly-root"></div>
-  </div>
+<body class="product-site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="public-nav" id="public-nav">
+<div class="nav-inner">
+<a aria-label="GG Learning Labs home" class="brand" href="#top"><span class="brand-symbol">GG</span><span><b>GG Learning Labs</b><small>CAPABILITY OPERATING SYSTEM</small></span></a>
+<nav aria-label="Primary" class="desktop-nav"></nav>
+<div class="nav-actions"><button aria-label="Switch color theme" class="icon-button" data-theme-toggle="" type="button"></button><a class="button ghost" data-login="" href="login.html">Log in</a><a class="button primary" data-login="" href="login.html">Explore platform</a><button aria-controls="mobile-menu" aria-expanded="false" aria-label="Open navigation" class="icon-button menu-button" type="button">☰</button></div>
 </div>
-<div class="toasts" id="toasts"></div>
-<div id="peek-root"></div>
-<div id="tour-root"></div>
-<div id="modal-root"></div>
-
-<!-- Order matters: sync.js must define window.Store before app.js runs,
-     because app.js calls Store.init() at the bottom of its own file. -->
-<script>
-/* A slow network is not a broken install. The troubleshooting notes appear
-   only after a normal sign-in would have completed. */
-setTimeout(function(){
-  var m=document.getElementById('main'), d=document.getElementById('bootdiag');
-  if(d && m && m.getAttribute('data-booted')!=='1') d.hidden=false;
-}, 4000);
-</script>
-<script src="vendor/supabase.js"></script>
-<script src="config.js"></script>
-<script src="sync.js"></script>
-<script src="admin.js"></script>
-<!-- SheetJS. Vendored rather than loaded from a CDN, for the same reason as
-     everything else here: the page talks to one host you control. -->
-<script src="vendor/xlsx.js"></script>
-<script src="staff.js"></script>
-<script src="app.js"></script>
-</body>
-</html>
+<div aria-hidden="true" class="mobile-menu" id="mobile-menu"><a data-login="" href="login.html">Log in</a><a class="button primary" data-login="" href="login.html">Explore platform</a></div>
+</header>
+<main id="main">
+<section class="product-hero" id="top">
+<div class="hero-copy">
+<div aria-label="Choose website experience" class="audience-switch" role="tablist"><button aria-selected="true" data-audience="individual" role="tab" type="button">Individual</button><button aria-selected="false" data-audience="business" role="tab" type="button">Business</button></div><span class="overline" data-audience-kicker="">FOR INDIVIDUAL UPSKILLERS</span>
+<h1><span data-audience-title="">Build the capability your next move needs.</span></h1>
+<p data-audience-copy="">Choose focused learning, assessments, coaching and development tools without buying a full corporate platform.</p>
+<div class="hero-actions"><a class="button primary large" data-audience-cta="" href="#memberships">Explore individual options</a><button class="button secondary large" data-tour="" type="button">Watch overview</button></div>
+</div><div aria-label="What GG Learning Labs connects" class="hero-capability-strip"><article><small>IDENTIFY</small><b>Needs &amp; gaps</b><span>TNA · TNI · Competencies</span></article><i>→</i><article><small>DEVELOP</small><b>Learning &amp; coaching</b><span>Paths · Programmes · Practice</span></article><i>→</i><article><small>PROVE</small><b>Evidence &amp; impact</b><span>Assess · Observe · Measure</span></article></div>
+</section>
+<section class="cycle-section" id="cycle"><div class="section-label"><span>THE CAPABILITY SYSTEM</span><h2>One connected cycle.<br/>Every signal improves the next decision.</h2></div><div class="cycle-stage"><div aria-label="Capability cycle" class="capability-orbit" role="tablist"><div class="orbit-center"><span>CAPABILITY</span><small>Evidence that people<br/>can perform</small></div></div><div aria-live="polite" class="cycle-inspector"></div></div></section>
+<section class="journal-section" id="journal"><div class="section-label inline"><div><span>FROM THE GG JOURNAL</span><h2>Latest ideas for building capability.</h2></div><p>Practical perspectives for L&amp;D teams, trainers and individual upskillers.</p></div><div class="journal-grid"><a class="journal-feature" href="blog/learning-transfer.html"><span class="journal-tag">FEATURED · LEARNING TRANSFER</span><h3>Completion is not capability: designing for evidence after learning</h3><p>A practical model for connecting assessment, observation, coaching and workplace application.</p><b>Read article →</b></a><div class="journal-list"><a href="blog/leadership-capability.html"><small>LEADERSHIP</small><h3>Why leadership training needs a capability system</h3><span>6 min read</span></a><a href="blog/trainer-observation.html"><small>TRAINER QUALITY</small><h3>Using observation as a coaching instrument</h3><span>5 min read</span></a><a href="blog/tna-to-action.html"><small>TNA / TNI</small><h3>Turning needs analysis into an action plan</h3><span>7 min read</span></a></div></div></section><section class="membership-section" id="memberships"><div class="section-label"><span>ACCESS YOUR WAY</span><h2>Membership when you want everything.<br/>Flexible purchase when you do not.</h2><p>Choose a complete membership or assemble only the modules and services you need.</p></div><div class="purchase-tabs" role="tablist"><button aria-selected="true" data-purchase="all" role="tab" type="button">One Membership</button><button aria-selected="false" data-purchase="flex" role="tab" type="button">Build Your Own</button><button aria-selected="false" data-purchase="business" role="tab" type="button">Business Plans</button></div><div aria-live="polite" class="purchase-stage"></div></section>
+</main><aside aria-live="polite" class="gg-genie"><button aria-label="Open GG Genie" class="genie-orb" type="button"><span>GG</span></button><div aria-hidden="true" aria-label="GG Genie" class="genie-panel" role="dialog"><header><div><small>GG GENIE</small><b>What do you need today?</b></div><button aria-label="Close" data-genie-close="" type="button">×</button></header><p>Choose a capability or L&amp;D need and I will gather the most relevant parts of GG Learning Labs.</p><label>I'm looking for<select data-genie-select=""><option value="">Choose a need…</option><option value="leadership">Leadership training</option><option value="communication">Communication capability</option><option value="compliance">Compliance learning</option><option value="trainer">Trainer effectiveness</option><option value="assessment">Assessments and certification</option><option value="coaching">Coaching and mentoring</option><option value="tna">TNA, TNI and skill gaps</option><option value="content">Learning content and design</option><option value="analytics">Capability analytics and reports</option></select></label><div class="genie-results"></div></div></aside>
+<section aria-labelledby="newsletter-title" class="newsletter-band"><div><small>GG LEARNING NOTES</small><h2 id="newsletter-title">One useful L&amp;D idea. No noise.</h2><p>Practical notes on capability, learning transfer, trainer quality and evidence.</p></div><form class="newsletter-form" id="newsletter-form"><label class="sr-only" for="newsletter-email">Work email</label><input id="newsletter-email" name="email" placeholder="you@company.com" required="" type="email"/><button class="button primary" type="submit">Subscribe</button><small class="newsletter-status" role="status"></small></form></section><footer><div class="brand"><span class="brand-symbol">GG</span><span><b>GG Learning Labs</b><small>One platform for building capability.</small></span></div><nav aria-label="Company and legal" class="footer-links"><a href="company/about.html">About us</a><a href="company/press.html">Press notes</a><a href="company/contact.html">Contact</a><a href="company/support.html">Support</a><a href="company/privacy.html">Privacy</a><a href="company/terms.html">Terms</a><a href="company/accessibility.html">Accessibility</a></nav><nav aria-label="Social media" class="social-links"><a aria-label="GG Learning Labs on LinkedIn" href="https://www.linkedin.com/" rel="noopener noreferrer" target="_blank" title="LinkedIn"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M6.5 8.2H3.2V21h3.3V8.2ZM4.8 3A1.9 1.9 0 1 0 4.8 6.8 1.9 1.9 0 0 0 4.8 3ZM21 13.7c0-3.8-2-5.8-4.8-5.8-2.2 0-3.2 1.2-3.8 2V8.2H9.1V21h3.3v-6.3c0-1.7.3-3.3 2.4-3.3 2 0 2.1 1.9 2.1 3.4V21H21v-7.3Z"></path></svg></a><a aria-label="GG Learning Labs on YouTube" href="https://www.youtube.com/" rel="noopener noreferrer" target="_blank" title="YouTube"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M23 12s0-3.6-.5-5.3a3 3 0 0 0-2.1-2.1C18.7 4 12 4 12 4s-6.7 0-8.4.6a3 3 0 0 0-2.1 2.1C1 8.4 1 12 1 12s0 3.6.5 5.3a3 3 0 0 0 2.1 2.1C5.3 20 12 20 12 20s6.7 0 8.4-.6a3 3 0 0 0 2.1-2.1C23 15.6 23 12 23 12Zm-13.2 3.4V8.6l6 3.4-6 3.4Z"></path></svg></a><a aria-label="GG Learning Labs on Instagram" href="https://www.instagram.com/" rel="noopener noreferrer" target="_blank" title="Instagram"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M7.1 2h9.8A5.1 5.1 0 0 1 22 7.1v9.8a5.1 5.1 0 0 1-5.1 5.1H7.1A5.1 5.1 0 0 1 2 16.9V7.1A5.1 5.1 0 0 1 7.1 2Zm-.2 2A2.9 2.9 0 0 0 4 6.9v10.2A2.9 2.9 0 0 0 6.9 20h10.2a2.9 2.9 0 0 0 2.9-2.9V6.9A2.9 2.9 0 0 0 17.1 4H6.9Zm10.6 1.5A1.2 1.2 0 1 1 17.5 8a1.2 1.2 0 0 1 0-2.5ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"></path></svg></a><a aria-label="GG Learning Labs on X" href="https://x.com/" rel="noopener noreferrer" target="_blank" title="X"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M18.9 2H22l-6.8 7.8L23.2 22H17l-4.9-6.4L6.5 22H3.4l7.2-8.2L.8 2h6.4l4.4 5.8L18.9 2Zm-1.1 17.9h1.7L6.3 4H4.5l13.3 15.9Z"></path></svg></a></nav><span class="footer-meta">Frontend prototype · Sample data only</span></footer>
+<script src="assets/js/core.js"></script><script src="assets/js/data.js"></script><script src="assets/js/services.js"></script><script src="assets/js/ui.js"></script><script src="assets/js/product-site.js"></script>
+</body></html>
