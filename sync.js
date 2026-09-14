@@ -771,10 +771,22 @@
       session = r.data.session;
       if (!session) { signInScreen(); return Promise.reject({ handled: true }); }
 
-      return sb.from('profiles').select('id, role, full_name, employee_id')
+      return sb.from('profiles').select('id, role, full_name, employee_id, email, is_active')
         .eq('id', session.user.id).single();
     }).then(function (r) {
       if (r.error || !r.data) throw new Error('No profile for this account. Ask the administrator.');
+      /* Deactivation is enforced in the database, so a dead account simply
+         sees nothing — which looks like a broken build rather than a closed
+         account. Say what has happened and end the session. */
+      /* Explicitly false, not merely falsy: an absent column must never lock
+         out a live account. The test suite caught that one. */
+      if (r.data.is_active === false) {
+        screen('This account has been deactivated',
+          'Your work is kept and still credited to you, but you can no longer ' +
+          'sign in. Speak to your trainer or the administrator.',
+          '<button class="btn ghost" data-act="signout">Sign out</button>');
+        return Promise.reject({ handled: true });
+      }
       me = r.data;
       return sb.from('batches').select('id, name, join_code, mode, status, desk_type')
         .eq('status', 'active').order('created_at', { ascending: false });
