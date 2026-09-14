@@ -754,15 +754,58 @@
       .subscribe();
   }
 
-  var refreshTimer = null;
+  var refreshTimer = null, waiting = false;
+
+  /* Is the person mid-interaction? An open native dropdown cannot be detected
+     directly, but a focused control is close enough and errs the safe way. */
+  /* A native select popup does not hold document.activeElement in Chrome, so
+     focus alone cannot tell us a dropdown is open. Anything the person points
+     at counts as "in use" for a few seconds afterwards instead. */
+  var lastTouch = 0;
+  ['mousedown', 'keydown', 'pointerdown'].forEach(function (e) {
+    document.addEventListener(e, function (ev) {
+      var t = ev.target && (ev.target.tagName || '').toLowerCase();
+      if (t === 'select' || t === 'input' || t === 'textarea' || t === 'option') {
+        lastTouch = Date.now();
+      }
+    }, true);
+  });
+
+  function busyControl() {
+    if (Date.now() - lastTouch < 4000) return true;
+    var a = document.activeElement;
+    if (!a) return false;
+    var t = (a.tagName || '').toLowerCase();
+    return t === 'select' || t === 'input' || t === 'textarea'
+        || a.isContentEditable === true;
+  }
+
+  function deferRedraw() {
+    if (waiting) return;
+    waiting = true;
+    var done = function () {
+      waiting = false;
+      document.removeEventListener('focusout', done, true);
+      document.removeEventListener('change', done, true);
+      setTimeout(function () { if (!busyControl()) refresh(); }, 120);
+    };
+    document.addEventListener('focusout', done, true);
+    document.addEventListener('change', done, true);
+  }
   function refresh() {
     /* Coalesce: a trainer working through a queue fires several of these in
        a second and the screen should settle once, not flicker per row. */
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function () {
       if (pushing) return;
+      /* Never redraw under someone's hands. A background refresh replaces the
+         view, which closes an open dropdown, drops a half-typed search and
+         moves the caret. The data is fetched either way; only the repaint
+         waits, and it happens the moment the control is let go. */
+      if (busyControl()) { deferRedraw(); return; }
       pull().then(function (d) {
         materialise(d);
+        if (busyControl()) { deferRedraw(); return; }
         redraw();
       }).catch(function (e) { fail('Refresh', e); });
     }, 400);
@@ -844,8 +887,14 @@
       /* An administrator signing in wants the operation, not whichever desk
          happened to be created most recently. Only on a cold start: a
          refresh or a deep link keeps whatever was being looked at. */
-      if (me.role === 'super_admin' && !location.hash) {
-        location.hash = '#/overview';
+      if (me.role === 'super_admin' && !window.__atsLanded) {
+        window.__atsLanded = true;
+        /* app.js holds the current view in a variable rather than the URL, so
+           this has to go through its own navigation. Setting location.hash
+           was a no-op and the administrator kept arriving on the dashboard. */
+        setTimeout(function () {
+          if (APP().go) APP().go('overview');
+        }, 0);
       }
       subscribe();
       api.available = true;
