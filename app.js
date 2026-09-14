@@ -6640,7 +6640,13 @@ function bootFail(where,err){
 window.addEventListener('error',function(ev){bootFail('running',ev.error||ev.message);});
 window.addEventListener('unhandledrejection',function(ev){bootFail('loading saved data',ev.reason);});
 
-try{ render(); }catch(e){ bootFail('drawing the first screen',e); }
+/* Nothing is drawn until the persistence layer says there is a signed-in
+   user. Drawing first was correct when the data lived in this browser;
+   on a shared desk it puts a dashboard of invented records in front of
+   someone who has not signed in, and paints over the sign-in screen. */
+if(!Store.needsAuth||Store.signedIn){
+  try{ render(); }catch(e){ bootFail('drawing the first screen',e); }
+}
 
 /* The only surface sync.js is allowed to touch. Kept deliberately small: a
    persistence layer needs the model, a redraw and a way to speak to the
@@ -6650,7 +6656,9 @@ window.APP={
   set DB(v){DB=v;},
   get SEQ(){return SEQ;},
   set SEQ(v){SEQ=v;},
-  render:render, toast:toast, byId:byId, notify:notify
+  render:render, toast:toast, byId:byId, notify:notify,
+  openModal:function(h){var r=document.getElementById('modal-root');if(r)r.innerHTML=h;},
+  closeModal:function(){var r=document.getElementById('modal-root');if(r)r.innerHTML='';}
 };
 
 Store.init().then(function(rec){
@@ -6682,14 +6690,18 @@ Store.init().then(function(rec){
     if(typeof DB.uiCoach==='boolean')coachMini=DB.uiCoach;
     render();
     toast('Restored your saved data from '+fmtDT(rec.savedAt||new Date()),'ok');
-    if(!DB.tourSeen)tourWelcome();
+    if(!DB.tourSeen&&!Store.needsAuth)tourWelcome();
   } else {
     render();
-    if(Store.available){Store.markAllCV();Store.save(true);}
-    if(!DB.tourSeen)tourWelcome();
+    if(Store.available&&!Store.needsAuth){Store.markAllCV();Store.save(true);}
+    if(!DB.tourSeen&&!Store.needsAuth)tourWelcome();
   }
 }).catch(function(err){
-  /* Saved data that cannot be read must not take the whole application down. */
+  /* A rejection here is usually 'not signed in', which is not a fault and
+     has already put the sign-in screen on the page. Only a genuine failure
+     should fall back to drawing anything. */
+  if(err&&err.handled)return;
+  if(Store.needsAuth&&!Store.signedIn)return;
   try{
     if(document.getElementById('main').getAttribute('data-booted')!=='1')render();
     toast('Saved data could not be read, so the sandbox started fresh','no');
