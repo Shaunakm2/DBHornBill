@@ -635,6 +635,15 @@
           }).join('') + '</div>'
         : '') +
 
+      /* Lost in an earlier edit and caught by test23. It matters most in the
+         one case the rail cannot cover: an administrator with no batches yet,
+         where the desk never renders and this menu is the only way through to
+         creating one. */
+      (staff
+        ? '<div class="acct-sec">' +
+          '<button class="acct-item" data-acct="manage">Batches and accounts</button>' +
+          '</div>'
+        : '') +
 
       '<div class="acct-sec">' +
       '<button class="acct-item" data-acct="prefs">Preferences</button>' +
