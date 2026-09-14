@@ -1,0 +1,64 @@
+name: tests
+
+# Runs on every push and pull request, and can be started by hand from the Actions tab.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Suites and audits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # A truncated upload is the failure that produced a blank page once before,
+      # so fail fast and say so plainly rather than letting the suites report it obscurely.
+      - name: Check the application files are present and complete
+        run: |
+          fail=0
+          check() {
+            if [ ! -f "$1" ]; then
+              echo "MISSING: $1"; fail=1; return
+            fi
+            size=$(wc -c < "$1")
+            if [ "$size" -lt "$2" ]; then
+              echo "TRUNCATED: $1 is $size bytes, expected at least $2"; fail=1
+            else
+              echo "ok: $1 ($size bytes)"
+            fi
+          }
+          check index.html 2000
+          check app.css   30000
+          check app.js   300000
+          if [ ! -d tests ]; then echo "MISSING: tests/ directory"; fail=1; fi
+          exit $fail
+
+      # The page must not reach outside itself. This matters on a filtered corporate
+      # network and to the argument that nothing leaves the trainee's machine.
+      - name: Check for third-party requests
+        run: |
+          if grep -nE 'https?://' index.html app.css; then
+            echo ""
+            echo "The shipped files reference an external URL. Self-host it or remove it:"
+            echo "a filtered corporate network may block it, and trainees would then see a"
+            echo "different layout from the one that was signed off."
+            exit 1
+          fi
+          echo "ok: no external requests in index.html or app.css"
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm install --no-audit --no-fund
+
+      - name: Run all suites and audits
+        working-directory: tests
+        run: npm test
