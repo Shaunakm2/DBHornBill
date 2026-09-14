@@ -217,9 +217,64 @@
     return rpc('roster').then(function (r) { roster = r; return r; });
   }
 
+  /* A roster of 150 with no way to narrow it is a scrolling exercise. */
+  var filt = { q: '', role: '', status: '', sort: 'name' };
+
+  function rosterRows() {
+    var rows = (roster || []).slice();
+    var q = filt.q.trim().toLowerCase();
+    if (q) rows = rows.filter(function (p) {
+      return (p.full_name || '').toLowerCase().indexOf(q) >= 0
+          || (p.employee_id || '').toLowerCase().indexOf(q) >= 0
+          || (p.email || '').toLowerCase().indexOf(q) >= 0;
+    });
+    if (filt.role) rows = rows.filter(function (p) { return p.role === filt.role; });
+    if (filt.status === 'active') rows = rows.filter(function (p) { return p.is_active; });
+    if (filt.status === 'off') rows = rows.filter(function (p) { return !p.is_active; });
+    if (filt.status === 'unassigned') rows = rows.filter(function (p) {
+      return p.role === 'trainee' && Number(p.batches) === 0;
+    });
+    rows.sort(function (a, b) {
+      if (filt.sort === 'batches') return Number(b.batches) - Number(a.batches);
+      if (filt.sort === 'role') return String(a.role).localeCompare(String(b.role))
+        || String(a.full_name).localeCompare(String(b.full_name));
+      if (filt.sort === 'employee') return String(a.employee_id || '~')
+        .localeCompare(String(b.employee_id || '~'));
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+    return rows;
+  }
+
+  function filterBar() {
+    var unassigned = (roster || []).filter(function (p) {
+      return p.role === 'trainee' && Number(p.batches) === 0;
+    }).length;
+    function sel(k, opts) {
+      return '<select data-sf="' + k + '">' + opts.map(function (o) {
+        return '<option value="' + o[0] + '"' + (filt[k] === o[0] ? ' selected' : '') +
+          '>' + esc(o[1]) + '</option>';
+      }).join('') + '</select>';
+    }
+    return '<div class="ad-filter">' +
+      '<input data-sf="q" placeholder="Search name, employee ID or email" value="' +
+        esc(filt.q) + '">' +
+      sel('role', [['', 'Any role'], ['trainee', 'Trainee'], ['trainer', 'Trainer'],
+                   ['super_admin', 'Administrator']]) +
+      sel('status', [['', 'Any status'], ['active', 'Active only'],
+                     ['off', 'Deactivated only'],
+                     ['unassigned', 'Trainees on no batch' +
+                       (unassigned ? ' (' + unassigned + ')' : '')]]) +
+      sel('sort', [['name', 'Sort by name'], ['role', 'Sort by role'],
+                   ['employee', 'Sort by employee ID'], ['batches', 'Sort by batches']]) +
+      (filt.q || filt.role || filt.status
+        ? '<button class="btn ghost sm" data-st="clearf">Clear</button>' : '') +
+      '</div>';
+  }
+
   function accountsView() {
     var isAdmin = me().role === 'super_admin';
-    return '<div class="h"><h2>Accounts</h2><span class="sp"></span>' +
+    var shown = rosterRows();
+    return '<div class="h"><h2>Accounts and batches</h2><span class="sp"></span>' +
       (isAdmin ? '<div class="btnrow">' +
         '<button class="btn" data-st="newtrainee">Add trainee</button>' +
         '<button class="btn ghost" data-st="newtrainer">Add trainer</button></div>' : '') +
@@ -228,15 +283,23 @@
       '<div class="sec">' +
       (isAdmin ? '' : '<p class="muted st-note">Only the administrator can create ' +
         'or deactivate accounts.</p>') +
-      (busy && !roster ? '<p class="muted">Loading\u2026</p>' : '') +
-      (roster && !roster.length
+      (!roster ? '<p class="muted">Loading\u2026</p>' : '') +
+      /* The bar shows with the table, not with a loaded flag: the table was
+         being drawn empty while the roster was still on its way, which made
+         the filters look absent rather than pending. */
+      (roster ? filterBar() : '') +
+      (roster && roster.length && !shown.length
+        ? '<div class="ad-empty"><h3>Nothing matches</h3><p>No account matches ' +
+          'those filters. Clear them to see everyone.</p></div>' : '') +
+      (!roster ? ''
+        : !roster.length
         ? '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
           (isAdmin ? 'Add a trainee or a trainer to get started.'
                    : 'The administrator has not created any accounts yet.') + '</p></div>'
         : '<table class="st-table"><thead><tr><th>Name</th><th>Employee ID</th>' +
           '<th>Email</th><th>Role</th><th class="num">Batches</th>' +
           (isAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' +
-          (roster || []).map(function (p) {
+          shown.map(function (p) {
             return '<tr' + (p.is_active ? '' : ' class="st-off"') + '>' +
               '<td>' + esc(p.full_name) +
               (p.is_active ? '' : ' <span class="st-tag">deactivated</span>') + '</td>' +
@@ -555,7 +618,39 @@
     }
   });
 
+  function onFilter(ev) {
+    var k = ev.target.dataset && ev.target.dataset.sf;
+    if (!k) return;
+    filt[k] = ev.target.value;
+    /* Only the rows are replaced. Rebuilding the whole view would take the
+       focus out of the search box on every keystroke. */
+    var el = ev.target;
+    var caret = (k === 'q' && el.setSelectionRange) ? el.selectionStart : null;
+    var tb = document.querySelector('#main .st-table tbody');
+    if (!tb) { redraw(); }
+    else {
+      var host = document.createElement('div');
+      host.innerHTML = accountsView();
+      var fresh = host.querySelector('.st-table tbody');
+      tb.innerHTML = fresh ? fresh.innerHTML
+        : '<tr><td colspan="6" class="muted">No account matches those filters.</td></tr>';
+      if (!rosterRows().length) {
+        tb.innerHTML = '<tr><td colspan="6" class="muted">No account matches those ' +
+          'filters.</td></tr>';
+      }
+    }
+    /* The input is only replaced if the whole view was redrawn; either way,
+       put the focus and the caret back where the person left them. */
+    var again = document.querySelector('[data-sf="' + k + '"]');
+    if (again) {
+      again.focus();
+      if (caret != null && again.setSelectionRange) again.setSelectionRange(caret, caret);
+    }
+  }
+  document.addEventListener('input', onFilter);
+
   document.addEventListener('change', function (ev) {
+    if (ev.target.dataset && ev.target.dataset.sf) return onFilter(ev);
     var d = ev.target.dataset || {};
     if (d.st === 'scope' || d.st === 'who') {
       if (d.st === 'scope') scope = ev.target.value || null;
