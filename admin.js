@@ -77,6 +77,8 @@
 
   /* ---------------------------------------------------------------- data */
   var state = { batches: [], roster: [], members: {}, openBatch: null };
+  /* A roster of 150 with no way to narrow it is a scrolling exercise. */
+  var filt = { q: '', role: '', status: '', sort: 'name' };
 
   function load() {
     return Promise.all([
@@ -175,17 +177,79 @@
         'on the Accounts tab first, then come back and put them on this batch.</p></div>');
   }
 
+  function rosterRows() {
+    var rows = state.roster.slice();
+    var q = filt.q.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(function (p) {
+        return (p.full_name || '').toLowerCase().indexOf(q) >= 0
+            || (p.employee_id || '').toLowerCase().indexOf(q) >= 0
+            || (p.email || '').toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    if (filt.role) rows = rows.filter(function (p) { return p.role === filt.role; });
+    if (filt.status === 'active') rows = rows.filter(function (p) { return p.is_active; });
+    if (filt.status === 'off') rows = rows.filter(function (p) { return !p.is_active; });
+    if (filt.status === 'unassigned') rows = rows.filter(function (p) {
+      return p.role === 'trainee' && Number(p.batches) === 0;
+    });
+
+    var by = filt.sort;
+    rows.sort(function (a, b) {
+      if (by === 'batches') return Number(b.batches) - Number(a.batches);
+      if (by === 'role') return String(a.role).localeCompare(String(b.role))
+        || String(a.full_name).localeCompare(String(b.full_name));
+      if (by === 'employee') return String(a.employee_id || '~')
+        .localeCompare(String(b.employee_id || '~'));
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+    return rows;
+  }
+
+  function filterBar() {
+    var unassigned = state.roster.filter(function (p) {
+      return p.role === 'trainee' && Number(p.batches) === 0;
+    }).length;
+    return '<div class="ad-filter">' +
+      '<input data-f="q" placeholder="Search name, employee ID or email" value="' +
+        esc(filt.q) + '">' +
+      '<select data-f="role">' +
+        ['', 'trainee', 'trainer', 'super_admin'].map(function (r) {
+          return '<option value="' + r + '"' + (filt.role === r ? ' selected' : '') + '>' +
+            (r ? r.replace('_', ' ') : 'Any role') + '</option>';
+        }).join('') + '</select>' +
+      '<select data-f="status">' +
+        [['', 'Any status'], ['active', 'Active only'], ['off', 'Deactivated only'],
+         ['unassigned', 'Trainees on no batch' + (unassigned ? ' (' + unassigned + ')' : '')]]
+        .map(function (o) {
+          return '<option value="' + o[0] + '"' + (filt.status === o[0] ? ' selected' : '') +
+            '>' + esc(o[1]) + '</option>';
+        }).join('') + '</select>' +
+      '<select data-f="sort">' +
+        [['name', 'Sort by name'], ['role', 'Sort by role'],
+         ['employee', 'Sort by employee ID'], ['batches', 'Sort by batches']]
+        .map(function (o) {
+          return '<option value="' + o[0] + '"' + (filt.sort === o[0] ? ' selected' : '') +
+            '>' + esc(o[1]) + '</option>';
+        }).join('') + '</select>' +
+      (filt.q || filt.role || filt.status
+        ? '<button class="btn ghost sm" data-ad="clearf">Clear</button>' : '') +
+      '</div>';
+  }
+
   function accountsView() {
     var isAdmin = me().role === 'super_admin';
+    var shown = rosterRows();
     return (isAdmin
       ? '<div class="ad-bar">' +
         '<button class="btn" data-ad="new-trainee">Add trainee</button>' +
         '<button class="btn ghost" data-ad="new-trainer">Add trainer</button></div>'
       : '<p class="ad-help">Only the administrator can create or deactivate accounts.</p>') +
+      filterBar() +
       '<table class="ad-table"><thead><tr><th>Name</th><th>Employee ID</th><th>Email</th>' +
       '<th>Role</th><th class="num">Batches</th>' + (isAdmin ? '<th></th>' : '') +
       '</tr></thead><tbody>' +
-      state.roster.map(function (p) {
+      shown.map(function (p) {
         return '<tr' + (p.is_active ? '' : ' class="ad-off"') + '>' +
           '<td>' + esc(p.full_name) + '</td>' +
           '<td class="mono">' + esc(p.employee_id || '—') + '</td>' +
@@ -204,8 +268,10 @@
             '</td>' : '') +
           '</tr>';
       }).join('') + '</tbody></table>' +
-      (state.roster.length ? '' :
-        '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
+      (shown.length ? '' : state.roster.length
+        ? '<div class="ad-empty"><h3>Nothing matches</h3><p>No account matches ' +
+          'those filters. Clear them to see everyone.</p></div>'
+        : '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
         (isAdmin ? 'Add a trainee or a trainer to get started.'
                  : 'The administrator has not created any accounts yet.') +
         '</p></div>') +
@@ -474,6 +540,20 @@
   }
 
   /* ---------------------------------------------------------------- shell */
+  function onFilter(ev) {
+    var k = ev.target.dataset && ev.target.dataset.f;
+    if (!k || !root) return;
+    filt[k] = ev.target.value;
+    var body = root.querySelector('.ad-body');
+    var keep = ev.target.dataset.f === 'q' ? ev.target.selectionStart : null;
+    body.innerHTML = errorStrip() + accountsView();
+    var again = root.querySelector('[data-f="' + k + '"]');
+    if (again) {
+      again.focus();
+      if (keep != null && again.setSelectionRange) again.setSelectionRange(keep, keep);
+    }
+  }
+
   function open() {
     if (root) return;
     root = document.createElement('div');
@@ -483,7 +563,7 @@
       '<h2>Manage</h2>' +
       '<div class="ad-tabs">' +
       '<button class="ad-tab on" data-tab="batches">Batches</button>' +
-      '<button class="ad-tab" data-tab="accounts">Accounts</button></div>' +
+      '<button class="ad-tab" data-tab="accounts">Accounts and batches</button></div>' +
       '<span class="sp"></span>' +
       '<button class="btn ghost sm" data-ad="close">Close</button></div>' +
       '<div class="ad-body"><div class="ad-empty"><p>Loading…</p></div></div></div>';
@@ -497,8 +577,11 @@
       var k = a.dataset.ad;
       if (k === 'close') return close();
       if (k === 'dismiss') { lastError = null; return render(); }
+      if (k === 'clearf') { filt.q = ''; filt.role = ''; filt.status = ''; return render(); }
       if (acts[k]) acts[k](a.dataset.id, a);
     });
+    root.addEventListener('input', onFilter);
+    root.addEventListener('change', onFilter);
     document.addEventListener('keydown', escClose);
 
     /* The same error strip as every other failure, rather than a second
