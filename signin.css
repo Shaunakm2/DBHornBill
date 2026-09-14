@@ -148,3 +148,178 @@ body.signed-out .sandbox-mark .btn { display: none; }
   .signin { padding-top: 3vh; }
   .signin-card { padding: 22px 18px 20px; border-radius: 0; border-left: 0; border-right: 0; }
 }
+
+/* ---------------------------------------------------------------- Manage
+   The administration overlay. Deliberately plainer than the desk behind it:
+   this is back-office work, not the thing being taught, and it should not
+   compete for attention with the screens trainees are learning. */
+
+.ad-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(24, 34, 48, .45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 16px 16px;
+  overflow: auto;
+}
+
+.ad-panel {
+  width: 100%;
+  max-width: 62em;
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(16, 24, 33, .28);
+}
+
+.ad-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line, #DCE1E6);
+}
+.ad-head h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink, #20344F); }
+.ad-head .sp { flex: 1; }
+
+.ad-tabs { display: flex; gap: 2px; }
+.ad-tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink3, #5A6875);
+  cursor: pointer;
+}
+.ad-tab.on {
+  color: var(--ink, #20344F);
+  font-weight: 600;
+  border-bottom-color: var(--accent, #2F7A63);
+}
+.ad-tab:focus-visible { outline: 2px solid var(--accent, #2F7A63); outline-offset: 2px; }
+
+.ad-body { padding: 16px 18px 20px; }
+
+.ad-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.ad-title { font-size: 14px; font-weight: 600; color: var(--ink, #20344F); }
+.ad-title .mono { font-weight: 400; color: var(--ink3, #5A6875); margin-left: 6px; }
+
+.ad-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ad-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink3, #5A6875);
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line, #DCE1E6);
+}
+.ad-table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line, #DCE1E6); }
+.ad-table .num { text-align: right; padding-right: 18px; }
+.ad-table tr.ad-off td { color: var(--ink3, #5A6875); }
+.ad-act { text-align: right; white-space: nowrap; }
+.ad-act .btn + .btn { margin-left: 6px; }
+
+.ad-tag {
+  font-size: 11px;
+  background: var(--surface2, #F1F3F5);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--ink3, #5A6875);
+}
+
+.ad-help {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink3, #5A6875);
+  max-width: 46em;
+}
+
+.ad-empty { padding: 34px 4px; max-width: 34em; }
+.ad-empty h3 { margin: 0 0 6px; font-size: 15px; color: var(--ink, #20344F); }
+.ad-empty p { margin: 0 0 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink3, #5A6875); }
+
+/* Prompt */
+.ad-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(24, 34, 48, .5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.ad-ask-card {
+  width: 100%;
+  max-width: 25em;
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  padding: 20px 20px 16px;
+}
+.ad-ask-card h3 { margin: 0 0 8px; font-size: 16px; color: var(--ink, #20344F); }
+.ad-ask-card label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: var(--ink3, #5A6875);
+}
+.ad-ask-card input,
+.ad-ask-card select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink, #20344F);
+  border: 1px solid var(--line2, #C9D1D8);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+}
+.ad-ask-card input:focus,
+.ad-ask-card select:focus {
+  outline: none;
+  border-color: var(--accent, #2F7A63);
+  box-shadow: 0 0 0 3px rgba(47, 122, 99, .14);
+}
+.ad-ask-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.ad-ask-err {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #FBEEEA;
+  border: 1px solid #E8C4B8;
+  color: #8A3520;
+  font-size: 12.5px;
+}
+
+.ad-secret {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--surface2, #F1F3F5);
+  border: 1px solid var(--line, #DCE1E6);
+  border-radius: 4px;
+  font-size: 15px;
+  letter-spacing: .04em;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* Signed out, none of the desk chrome means anything. */
+body.signed-out #fab-root,
+body.signed-out #tour-root,
+body.signed-out #bell-root,
+body.signed-out #mmode,
+body.signed-out #signout { display: none; }
+
+@media (max-width: 640px) {
+  .ad-wrap { padding: 0; }
+  .ad-panel { border-radius: 0; min-height: 100vh; }
+  .ad-table th:nth-child(3), .ad-table td:nth-child(3) { display: none; }
+}
