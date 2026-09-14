@@ -592,7 +592,7 @@
         'and visible to your trainer.';
     }
     var who = document.getElementById('whoami');
-    if (who) who.textContent = me.full_name + (batch ? ' \u00b7 ' + batch.name : '');
+    if (who) who.textContent = me.full_name;   // the batch is in the menu below
     var av = document.getElementById('avatar');
     if (av) {
       av.textContent = me.full_name.split(/\s+/).map(function (w) { return w[0]; })
