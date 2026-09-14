@@ -1,0 +1,150 @@
+/* signin.css — the two screens that exist before the desk does.
+   Uses the tokens already defined in app.css so the sign-in does not look
+   like it came from a different product than the thing behind it. */
+
+.signin {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 7vh 20px 40px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 25.5em;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #DCE1E6);
+  border-radius: 6px;
+  padding: 28px 26px 24px;
+}
+
+.signin-card h1 {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--ink, #20344F);
+}
+
+.signin-sub {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--ink3, #5A6875);
+}
+
+.signin-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line, #DCE1E6);
+}
+
+.signin-tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink3, #5A6875);
+  cursor: pointer;
+}
+.signin-tab.on {
+  color: var(--ink, #20344F);
+  border-bottom-color: var(--accent, #2F7A63);
+  font-weight: 600;
+}
+.signin-tab:focus-visible { outline: 2px solid var(--accent, #2F7A63); outline-offset: 2px; }
+
+.signin-pane label {
+  display: block;
+  margin-bottom: 13px;
+  font-size: 12.5px;
+  color: var(--ink3, #5A6875);
+}
+
+.signin-pane input {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink, #20344F);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line2, #C9D1D8);
+  border-radius: 4px;
+}
+.signin-pane input:focus {
+  outline: none;
+  border-color: var(--accent, #2F7A63);
+  box-shadow: 0 0 0 3px rgba(47, 122, 99, .14);
+}
+
+/* The employee ID and batch code are short, fixed-shape strings that people
+   read off a screen and a whiteboard. Monospace makes a transposed character
+   visible before they press the button. */
+#si-emp, #si-batch {
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.signin-pane .btn { width: 100%; margin-top: 4px; justify-content: center; }
+
+.signin-help {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink3, #5A6875);
+}
+
+.signin-err {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #FBEEEA;
+  border: 1px solid #E8C4B8;
+  color: #8A3520;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Batch picker */
+.batch-list { display: flex; flex-direction: column; gap: 8px; }
+
+.batch-pick {
+  appearance: none;
+  text-align: left;
+  padding: 12px 14px;
+  font: inherit;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line2, #C9D1D8);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.batch-pick:hover { border-color: var(--accent, #2F7A63); }
+.batch-pick:focus-visible { outline: 2px solid var(--accent, #2F7A63); outline-offset: 2px; }
+.batch-pick b { display: block; font-size: 14px; color: var(--ink, #20344F); }
+.batch-pick span {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: var(--ink3, #5A6875);
+}
+
+/* Signed out, the chrome around the desk is meaningless. */
+body.signed-out .topbar .ff,
+body.signed-out .topbar .pillbtn,
+body.signed-out .topbar .tbar-r,
+body.signed-out .side,
+body.signed-out .coach,
+body.signed-out .sandbox-mark .btn { display: none; }
+
+@media (max-width: 560px) {
+  .signin { padding-top: 3vh; }
+  .signin-card { padding: 22px 18px 20px; border-radius: 0; border-left: 0; border-right: 0; }
+}
