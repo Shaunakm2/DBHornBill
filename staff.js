@@ -43,17 +43,31 @@
     return !!(a.closest && a.closest('#main'));
   }
 
-  var pendingRedraw = null;
+  /* Repaint only when the view would actually come out different. The console
+     showed this running every 610ms with nothing changing, and a dropdown
+     cannot survive a page that rebuilds itself twice a second.
+
+     The focus check below is kept but is not relied on: while a native select
+     popup is open the browser reports document.activeElement as <body>, not as
+     the select, so a guard written that way can never fire. That is why the
+     two previous attempts at this made no difference. */
+  var lastPaint = '';
 
   function redraw() {
-    if (busyControl()) {
-      clearTimeout(pendingRedraw);
-      pendingRedraw = setTimeout(redraw, 600);
-      return;
-    }
-    clearTimeout(pendingRedraw);
-    pendingRedraw = null;
-    if (window.APP && window.APP.render) window.APP.render();
+    if (!window.APP || !window.APP.render) return;
+    var main = document.getElementById('main');
+    var fresh;
+    comparing = true;
+    try { fresh = render(currentView()); } catch (e) { fresh = null; }
+    comparing = false;
+    if (fresh != null && main && fresh === lastPaint) return;   // nothing changed
+    if (fresh != null) lastPaint = fresh;
+    window.APP.render();
+  }
+
+  function currentView() {
+    var h = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
+    return VIEWS[h] ? h : 'overview';
   }
   function say(m, k) { if (window.APP && window.APP.toast) window.APP.toast(m, k); }
 
@@ -548,19 +562,21 @@
   }
 
   /* ---------------------------------------------------------------- render */
+  var comparing = false;
+
   function render(view) {
     if (!staff()) {
       return '<div class="ad-empty"><h3>Not available</h3>' +
         '<p>This section is for trainers and administrators.</p></div>';
     }
-    if (!cache.batches && !busy) {
+    if (!cache.batches && !busy && !comparing) {
       busy = true;
       batches().then(function () { busy = false; redraw(); })
         .catch(function (e) { busy = false; err = e.message; redraw(); });
     }
     if (view === 'overview') return people.batch ? peopleView() : overview();
     if (view === 'staffreports') return reports();
-    if (!roster && !busy) {
+    if (!roster && !busy && !comparing) {
       busy = true;
       loadRoster().then(function () { busy = false; redraw(); })
         .catch(function (e) { busy = false; err = e.message; redraw(); });
