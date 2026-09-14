@@ -19,8 +19,8 @@
   var VIEWS = { overview: 1, staffreports: 1, accounts: 1 };
   var cache = { batches: null, at: 0 };
   var busy = false, err = null;
-  var scope = null;   // batch id, or null for every batch the reader may see
-  var who = null;     // trainee name, or null for everyone
+  var scope = null;      // batch id, or null for every batch the reader may see
+  var whoFor = {};       // trainee, per report — not every report has one
 
   function sb() { return window.Store && window.Store.sb && window.Store.sb(); }
   function me() { return (window.Store && window.Store.whoami && window.Store.whoami()) || {}; }
@@ -259,7 +259,7 @@
 
   /* -------------------------------------------------------------- reports */
   var REPORTS = [
-    { k: 'scorecard', fn: 'rpt_scorecard', t: 'Trainee scorecard',
+    { k: 'scorecard', fn: 'rpt_scorecard', t: 'Trainee scorecard', who: true,
       d: 'One row per trainee. Volumes, internal-to-client conversion, ' +
          'turnaround on queries and on sendouts, and how much of what they ' +
          'sent was good enough to reach the client.',
@@ -281,7 +281,7 @@
       why: 'This is the session summary, per person and for the whole batch ' +
            'rather than one browser. It is what an appraisal comment has to ' +
            'rest on if it is going to survive being questioned.',
-      needsWho: true },
+      who: true, needsWho: true },
     { k: 'batches', fn: 'rpt_batches', t: 'Batch summary',
       d: 'One row per batch: people, job orders, pipeline depth, what is ' +
          'waiting and for how long.',
@@ -301,23 +301,25 @@
           (scope === b.batch_id ? ' selected' : '') + '>' + esc(b.batch_name) +
           (b.mine ? '' : ' (not yours)') + '</option>';
       }).join('') + '</select></label>' +
-      '<label>Trainee<select data-st="who">' +
-      '<option value="">Everyone</option>' +
-      people.map(function (p) {
-        return '<option value="' + esc(p) + '"' + (who === p ? ' selected' : '') +
-          '>' + esc(p) + '</option>';
-      }).join('') + '</select></label>' +
       '<p class="muted st-note" id="st-scope-note"></p></div>' +
       '<div class="st-cards">' +
       REPORTS.map(function (r) {
         return '<div class="st-card"><h3>' + esc(r.t) + '</h3>' +
           '<p>' + esc(r.d) + '</p>' +
           '<p class="st-why">' + esc(r.why) + '</p>' +
-          (r.needsWho && !who
-            ? '<p class="st-need">Choose a trainee above.</p>' : '') +
+          (r.who
+            ? '<label class="st-who">Trainee<select data-st="who" data-k="' + r.k + '">' +
+              '<option value="">Everyone</option>' +
+              people.map(function (p) {
+                return '<option value="' + esc(p) + '"' +
+                  (whoFor[r.k] === p ? ' selected' : '') + '>' + esc(p) + '</option>';
+              }).join('') + '</select></label>'
+            : '') +
+          (r.needsWho && !whoFor[r.k]
+            ? '<p class="st-need">Choose a trainee.</p>' : '') +
           '<div class="st-card-foot">' +
           '<button class="btn" data-st="dl" data-k="' + r.k + '"' +
-          (r.needsWho && !who ? ' disabled' : '') + '>Download</button></div></div>';
+          (r.needsWho && !whoFor[r.k] ? ' disabled' : '') + '>Download</button></div></div>';
       }).join('') + '</div></div>';
   }
 
@@ -347,8 +349,9 @@
     var args = r.fn === 'rpt_batches' ? {} : { p_batch: scope || null };
     rpc(r.fn, args).then(function (rows) {
       busy = false;
-      if (r.needsWho && who) {
-        rows = rows.filter(function (x) { return x.actor === who; });
+      var pick = whoFor[r.k];
+      if (r.who && pick) {
+        rows = rows.filter(function (x) { return (x.actor || x.trainee) === pick; });
       }
       if (!rows.length) { say('That report has no rows yet.', 'no'); return redraw(); }
 
@@ -360,6 +363,7 @@
       }); });
 
       var title = r.t;
+      var pickName = whoFor[kind];
       var scopeName = scope
         ? (cache.batches.filter(function (b) { return b.batch_id === scope; })[0] || {}).batch_name
         : 'All batches';
@@ -369,6 +373,7 @@
       var aoa = [
         [title],
         ['Scope', scopeName || ''],
+        ['Trainee', pickName || 'Everyone'],
         ['Generated', new Date().toLocaleString()],
         ['Run by', me().full_name || ''],
         [],
@@ -554,7 +559,13 @@
     var d = ev.target.dataset || {};
     if (d.st === 'scope' || d.st === 'who') {
       if (d.st === 'scope') scope = ev.target.value || null;
-      if (d.st === 'who') who = ev.target.value || null;
+      if (d.st === 'who') {
+        whoFor[d.k] = ev.target.value || null;
+        /* The tile's own button has to enable or disable with the choice, so
+           this one card is repainted. The select being changed is inside it,
+           so the value is written back before anything is replaced. */
+        return paintCard(d.k);
+      }
       /* Deliberately not a redraw. Re-rendering the view replaces the select
          element, which closes it mid-choice and looks like the control is
          broken. Only the sentence underneath needs to change. */
@@ -562,15 +573,29 @@
     }
   });
 
+  /* Repaint one tile without touching the rest of the page, so no other
+     open control is destroyed. */
+  function paintCard(k) {
+    var r = REPORTS.filter(function (x) { return x.k === k; })[0];
+    if (!r) return;
+    var btn = document.querySelector('[data-st="dl"][data-k="' + k + '"]');
+    if (btn) {
+      if (r.needsWho && !whoFor[k]) btn.setAttribute('disabled', '');
+      else btn.removeAttribute('disabled');
+    }
+    var need = btn && btn.closest('.st-card').querySelector('.st-need');
+    if (need) need.hidden = !(r.needsWho && !whoFor[k]);
+    paintScope();
+  }
+
   function paintScope() {
     var el = document.getElementById('st-scope-note');
     if (!el) return;
     var rows = cache.batches || [];
     var b = scope && rows.filter(function (x) { return x.batch_id === scope; })[0];
     el.innerHTML = 'Downloads are Excel workbooks covering <b>' +
-      esc(b ? b.batch_name : 'every batch you can report on') + '</b>' +
-      (who ? ', for <b>' + esc(who) + '</b> only' : '') +
-      '. Figures are as at the moment you press the button.';
+      esc(b ? b.batch_name : 'every batch you can report on') +
+      '</b>. Figures are as at the moment you press the button.';
   }
 
   window.ATSStaff = { render: render, views: VIEWS, staff: staff };
