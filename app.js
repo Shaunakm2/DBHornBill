@@ -3295,7 +3295,14 @@ var MENU=[
   {v:'config',t:'Configuration'},
   {v:'notes',t:'All Notes',ct:function(){return DB.notes.length;}},
   {v:'audit',t:'Activity Log',ct:function(){return DB.audit.length;}},
-  {v:'guide',t:'Guide'}
+  {v:'guide',t:'Guide'},
+  /* Trainers and administrators only. Hidden from everyone else by
+     navItems(), and refused by the database regardless of what the rail
+     happens to show. */
+  {g:'Training operations'},
+  {v:'overview',t:'Overview'},
+  {v:'staffreports',t:'Reports'},
+  {v:'accounts',t:'Accounts and batches'}
 ];
 function fastFind(term){
   var res=document.getElementById('ff-res');
@@ -4905,7 +4912,8 @@ var PIN_FLAG={
   placements:function(){return pendingPlacements().length;},
   pipeline:function(){return staleSubs().length;}
 };
-var NAV_GROUPS=['My desk','Sales','Records','Recruiting','Delivery','Tools'];
+var NAV_GROUPS=['My desk','Sales','Records','Recruiting','Delivery','Tools',
+  'Training operations'];
 function navGroupOf(v){
   var g='Records';
   if(['dashboard','tasks','appts'].indexOf(v)>=0)g='My desk';
@@ -4913,11 +4921,18 @@ function navGroupOf(v){
   else if(['pipeline','search','tearsheets'].indexOf(v)>=0)g='Recruiting';
   else if(['placements','approvals'].indexOf(v)>=0)g='Delivery';
   else if(['reports','audit','notes','data','config','guide'].indexOf(v)>=0)g='Tools';
+  else if(['overview','staffreports','accounts'].indexOf(v)>=0)g='Training operations';
   return g;
 }
+function isStaff(){return DB.role==='trainer'||DB.role==='super_admin';}
+var STAFF_VIEWS=['overview','staffreports','accounts'];
 function navItems(){
   var byV={};
-  MENU.forEach(function(i){if(i.v)byV[i.v]=i;});
+  MENU.forEach(function(i){
+    if(!i.v)return;
+    if(STAFF_VIEWS.indexOf(i.v)>=0&&!isStaff())return;
+    byV[i.v]=i;
+  });
   var order=(DB.config&&DB.config.navOrder)||[];
   var out=[];
   order.forEach(function(v){if(byV[v]){out.push(byV[v]);delete byV[v];}});
@@ -6115,7 +6130,15 @@ function renderCoach(){
 }
 
 /* ---------------------------------------------------------------- render */
-var VIEWS={dashboard:vDashboard,tasks:vTasks,appts:vAppts,leads:vLeads,lead:vLead,opps:vOpps,opp:vOpp,
+function vStaff(v){
+  if(!window.ATSStaff)return '<div class="sec"><div class="callout">'+
+    'This section needs staff.js, which is not loaded.</div></div>';
+  return window.ATSStaff.render(v);
+}
+var VIEWS={overview:function(){return vStaff('overview');},
+  staffreports:function(){return vStaff('staffreports');},
+  accounts:function(){return vStaff('accounts');},
+  dashboard:vDashboard,tasks:vTasks,appts:vAppts,leads:vLeads,lead:vLead,opps:vOpps,opp:vOpp,
   companies:vCompanies,company:vCompany,contacts:vContacts,contact:vContact,jobs:vJobs,job:vJob,
   candidates:vCandidates,candidate:vCandidate,pipeline:vPipeline,tearsheets:vTearsheets,tearsheet:vTearsheet,
   search:vSearch,data:vData,config:vConfig,
