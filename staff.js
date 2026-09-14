@@ -18,7 +18,9 @@
 
   var VIEWS = { overview: 1, staffreports: 1, accounts: 1 };
   var cache = { batches: null, at: 0 };
-  var busy = false, err = null, scope = null;   // scope: batch id, or null for all
+  var busy = false, err = null;
+  var scope = null;   // batch id, or null for every batch the reader may see
+  var who = null;     // trainee name, or null for everyone
 
   function sb() { return window.Store && window.Store.sb && window.Store.sb(); }
   function me() { return (window.Store && window.Store.whoami && window.Store.whoami()) || {}; }
@@ -57,7 +59,12 @@
     }
     return rpc('rpt_batches').then(function (rows) {
       cache.batches = rows; cache.at = Date.now();
-      return rows;
+      return rpc('rpt_scorecard').then(function (sc) {
+        var seen = {};
+        cache.people = (sc || []).map(function (r) { return r.trainee; })
+          .filter(function (n) { if (!n || seen[n]) return false; seen[n] = 1; return true; });
+        return rows;
+      }, function () { cache.people = []; return rows; });
     });
   }
 
@@ -268,6 +275,13 @@
          'and when.',
       why: 'The evidence behind an appraisal comment, and the answer to ' +
            '"did they actually work the desk".' },
+    { k: 'footprint', fn: 'rpt_activity', t: 'Trainee footprint',
+      d: 'One trainee, every action they took, in order: what they sourced, ' +
+         'what they wrote, what they submitted and when.',
+      why: 'This is the session summary, per person and for the whole batch ' +
+           'rather than one browser. It is what an appraisal comment has to ' +
+           'rest on if it is going to survive being questioned.',
+      needsWho: true },
     { k: 'batches', fn: 'rpt_batches', t: 'Batch summary',
       d: 'One row per batch: people, job orders, pipeline depth, what is ' +
          'waiting and for how long.',
@@ -276,6 +290,7 @@
 
   function reports() {
     var rows = cache.batches || [];
+    var people = (cache.people || []).slice().sort();
     return '<div class="h"><h2>Reports</h2></div>' +
       (err ? '<div class="ad-err">' + esc(err) + '</div>' : '') +
       '<div class="sec">' +
@@ -286,22 +301,29 @@
           (scope === b.batch_id ? ' selected' : '') + '>' + esc(b.batch_name) +
           (b.mine ? '' : ' (not yours)') + '</option>';
       }).join('') + '</select></label>' +
-      '<p class="muted st-note">Downloads are Excel workbooks covering <b>' +
-      esc(scope
-        ? (rows.filter(function (b) { return b.batch_id === scope; })[0] || {}).batch_name
-        : 'every batch you can report on') +
-      '</b>. Figures are as at the moment you press the button.</p></div>' +
+      '<label>Trainee<select data-st="who">' +
+      '<option value="">Everyone</option>' +
+      people.map(function (p) {
+        return '<option value="' + esc(p) + '"' + (who === p ? ' selected' : '') +
+          '>' + esc(p) + '</option>';
+      }).join('') + '</select></label>' +
+      '<p class="muted st-note" id="st-scope-note"></p></div>' +
       '<div class="st-cards">' +
       REPORTS.map(function (r) {
         return '<div class="st-card"><h3>' + esc(r.t) + '</h3>' +
           '<p>' + esc(r.d) + '</p>' +
           '<p class="st-why">' + esc(r.why) + '</p>' +
-          '<button class="btn" data-st="dl" data-k="' + r.k + '">Download</button></div>';
+          (r.needsWho && !who
+            ? '<p class="st-need">Choose a trainee above.</p>' : '') +
+          '<div class="st-card-foot">' +
+          '<button class="btn" data-st="dl" data-k="' + r.k + '"' +
+          (r.needsWho && !who ? ' disabled' : '') + '>Download</button></div></div>';
       }).join('') + '</div></div>';
   }
 
   /* ---------------------------------------------------------------- excel */
   var HEAD = {
+    footprint: ['Batch', 'Yours', 'When', 'Who', 'Employee ID', 'Action', 'Record', 'Detail'],
     scorecard: ['Batch', 'Yours', 'Employee ID', 'Trainee', 'Candidates added',
       'Notes written', 'Avg note length', 'Submissions', 'Sent internal',
       'Sent to client', 'Interviews', 'Rejected', 'Rejected (coachable)',
@@ -325,6 +347,9 @@
     var args = r.fn === 'rpt_batches' ? {} : { p_batch: scope || null };
     rpc(r.fn, args).then(function (rows) {
       busy = false;
+      if (r.needsWho && who) {
+        rows = rows.filter(function (x) { return x.actor === who; });
+      }
       if (!rows.length) { say('That report has no rows yet.', 'no'); return redraw(); }
 
       var head = HEAD[kind];
@@ -526,13 +551,27 @@
   });
 
   document.addEventListener('change', function (ev) {
-    if (ev.target.dataset && ev.target.dataset.st === 'scope') {
-      scope = ev.target.value || null;
-      /* Without a redraw the selection had no visible effect at all, which
-         reads as a control that does not work. */
-      redraw();
+    var d = ev.target.dataset || {};
+    if (d.st === 'scope' || d.st === 'who') {
+      if (d.st === 'scope') scope = ev.target.value || null;
+      if (d.st === 'who') who = ev.target.value || null;
+      /* Deliberately not a redraw. Re-rendering the view replaces the select
+         element, which closes it mid-choice and looks like the control is
+         broken. Only the sentence underneath needs to change. */
+      paintScope();
     }
   });
+
+  function paintScope() {
+    var el = document.getElementById('st-scope-note');
+    if (!el) return;
+    var rows = cache.batches || [];
+    var b = scope && rows.filter(function (x) { return x.batch_id === scope; })[0];
+    el.innerHTML = 'Downloads are Excel workbooks covering <b>' +
+      esc(b ? b.batch_name : 'every batch you can report on') + '</b>' +
+      (who ? ', for <b>' + esc(who) + '</b> only' : '') +
+      '. Figures are as at the moment you press the button.';
+  }
 
   window.ATSStaff = { render: render, views: VIEWS, staff: staff };
 })();
