@@ -42,6 +42,7 @@
   var snapshot = null;           // last known server state, for diffing
   var idMap = { toServer: {}, toLocal: {} };
   var saveTimer = null;
+  var pushed = 0;        // rows written by the last save; 0 means do not repaint
   var pushing = false;
 
   var api = {
@@ -426,7 +427,7 @@
           /* The record keeps its identity across the swap: anything already
              pointing at the local pool id is repointed at the real row. */
           var was = c.id;
-          c.id = r.data.id; c.ref = r.data.ref; c.remote = true;
+          c.id = r.data.id; c.ref = r.data.ref; c.remote = true; pushed++;
           idMap.toServer[r.data.ref] = r.data.id;
           DB.subs.forEach(function (s) { if (s.candidateId === was) s.candidateId = c.id; });
           DB.notes.forEach(function (n) {
@@ -451,7 +452,7 @@
             if (String(r.error.code) === '23505') return duplicateWarning(s);
             throw r.error;
           }
-          s.id = r.data.id; s.version = r.data.version; s.statusCode = 'sourced';
+          s.id = r.data.id; s.version = r.data.version; s.statusCode = 'sourced'; pushed++;
         })
       );
     });
@@ -486,7 +487,7 @@
           action: n.action || 'other', body: n.text, author_id: me.id
         }).select().single().then(function (r) {
           if (r.error) throw r.error;
-          n.id = r.data.id;
+          n.id = r.data.id; pushed++;
         })
       );
     });
@@ -929,10 +930,15 @@
       pushCandidates(DB)
         .then(function () { return pushSubmissions(DB); })
         .then(function () { return pushNotes(DB); })
-        .then(function () {
+        .then(function (n) {
           api.lastSaved = new Date().toISOString();
           pushing = false;
-          redraw();
+          /* Only repaint if something was actually written. A save with
+             nothing to push still redrew, the redraw let app.js call save
+             again, and the two chased each other every 600ms for as long as
+             the screen was open — which is the repaint loop in the console,
+             and what was killing the dropdown. */
+          if (pushed > 0) { pushed = 0; redraw(); }
         })
         .catch(function (e) { pushing = false; fail('Save', e); });
     }, force ? 0 : 600);
