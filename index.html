@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recruitment ATS — practice environment</title>
+<!-- No third-party requests. Fonts come from the operating system, so this page works on a
+     network with egress filtering and reaches nothing outside itself.
+
+     To use Archivo and IBM Plex Mono instead, download them, drop the .woff2 files in a fonts/
+     folder beside this file, and add:
+
+     <style>
+       @font-face{font-family:Archivo;src:url(fonts/Archivo-Regular.woff2) format('woff2');
+         font-weight:400;font-display:swap}
+       @font-face{font-family:Archivo;src:url(fonts/Archivo-SemiBold.woff2) format('woff2');
+         font-weight:600;font-display:swap}
+       @font-face{font-family:'IBM Plex Mono';src:url(fonts/IBMPlexMono-Regular.woff2) format('woff2');
+         font-weight:400;font-display:swap}
+     </style>
+
+     The stylesheet already names them first in --sans and --mono, so they will be picked up
+     automatically once present. -->
+<link rel="stylesheet" href="app.css?v=14">
+<link rel="stylesheet" href="signin.css?v=14">
+</head>
+<body>
+<noscript><div style="padding:24px;font-family:system-ui,Arial,sans-serif">This training environment needs JavaScript enabled.</div></noscript>
+<div class="app">
+  <div class="sandbox-mark">
+    <span id="sandbox-note"><b>Practice environment.</b> Invented records — no real candidate or client data.</span>
+    <span class="sp"></span>
+    <button class="btn ghost sm" data-act="session" id="btn-session">Session summary</button>
+    <button class="btn ghost sm" data-act="reset" id="btn-reset" hidden>Reset all data</button>
+  </div>
+
+  <div class="topbar">
+    <div class="appname">Recruit<span>practice build</span></div>
+    <div class="ff">
+      <input id="ff" type="text" placeholder="Find — name, company, job order" autocomplete="off" aria-label="Find">
+      <div id="ff-res"></div>
+    </div>
+    <button class="pillbtn" data-act="addnew" aria-label="Add a new record">
+      <span class="circ"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></span>Add</button>
+    <span class="sp"></span>
+    <div class="tbar-r">
+      <span id="bell-root"></span>
+      <a data-act="training" id="tmode">Training</a>
+      <a data-act="permissive" id="pmode">Rules</a>
+      <a data-go="guide">Help</a>
+      <div class="acct" id="acct">
+        <button class="acct-btn" id="acct-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="who" id="whoami">A. Trainee</span>
+          <span class="avatar" id="avatar">AT</span>
+        </button>
+        <div class="acct-menu" id="acct-menu" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <nav class="side" id="rail"></nav>
+    <main class="main" id="main"><div id="bootmsg" style="padding:28px 22px;font-family:system-ui,
+      -apple-system,'Segoe UI',Arial,sans-serif;max-width:60em">
+      <h2 style="margin:0 0 8px;font-size:19px;color:#20344F">Loading…</h2>
+      <div id="bootdiag" hidden>
+      <p style="margin:0 0 14px;color:#5A6875;font-size:14px">This is taking longer than it should.
+      If nothing happens, <b>app.js did not load or could not run</b>.</p>
+      <ul style="margin:0;padding-left:20px;color:#5A6875;font-size:13.5px;line-height:1.7">
+        <li><b>index.html</b>, <b>app.js</b> and <b>app.css</b> must sit in the <i>same folder</i>.</li>
+        <li>File names are case sensitive on GitHub Pages: <code>app.js</code>, not <code>App.js</code>.</li>
+        <li>Open <b>index.html</b> — not app.js.</li>
+        <li>Hard refresh to clear a cached copy: Ctrl+Shift+R, or Cmd+Shift+R.</li>
+        <li>Open the browser console (F12) — any error there names the real cause.</li>
+      </ul></div></div></main>
+    <aside class="coach" id="coach"></aside>
+    <div id="fab-root"></div>
+<div id="fly-root"></div>
+  </div>
+</div>
+<div class="toasts" id="toasts"></div>
+<div id="peek-root"></div>
+<div id="tour-root"></div>
+<div id="modal-root"></div>
+
+<!-- Order matters: sync.js must define window.Store before app.js runs,
+     because app.js calls Store.init() at the bottom of its own file. -->
+<script>
+/* A slow network is not a broken install. The troubleshooting notes appear
+   only after a normal sign-in would have completed. */
+setTimeout(function(){
+  var m=document.getElementById('main'), d=document.getElementById('bootdiag');
+  if(d && m && m.getAttribute('data-booted')!=='1') d.hidden=false;
+}, 4000);
+</script>
+<script>
+/* Bump this and the ?v= numbers together on every deploy. The banner in the
+   console is there so a bug report can say which build it came from. */
+window.ATS_BUILD = "14";
+console.info("Recruitment ATS build " + window.ATS_BUILD);
+</script>
+<script src="vendor/supabase.js?v=14"></script>
+<script src="config.js?v=14"></script>
+<script src="sync.js?v=14"></script>
+<script src="admin.js?v=14"></script>
+<!-- SheetJS. Vendored rather than loaded from a CDN, for the same reason as
+     everything else here: the page talks to one host you control. -->
+<script src="vendor/xlsx.js?v=14"></script>
+<script src="staff.js?v=14"></script>
+<script src="app.js?v=14"></script>
+</body>
+</html>
