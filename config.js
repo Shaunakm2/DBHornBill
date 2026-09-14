@@ -12,5 +12,5 @@
 
 window.ATS_CONFIG = {
   url: 'https://cwssahztaeltousbczxh.supabase.co',
-  anonKey: 'PASTE-YOUR-PUBLISHABLE-KEY-HERE'
+  anonKey: 'sb_publishable_bJktBazyw-F1SBO_HezDng_Vj8khlx4'
 };
