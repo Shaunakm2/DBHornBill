@@ -51,23 +51,12 @@
      popup is open the browser reports document.activeElement as <body>, not as
      the select, so a guard written that way can never fire. That is why the
      two previous attempts at this made no difference. */
-  var lastPaint = '';
-
+  /* Repaint is sync.js's job now: it coalesces every caller and knows when a
+     control is in use. This used to diff its own output and schedule retries,
+     which was one half of the loop it was meant to prevent. */
   function redraw() {
-    if (!window.APP || !window.APP.render) return;
-    var main = document.getElementById('main');
-    var fresh;
-    comparing = true;
-    try { fresh = render(currentView()); } catch (e) { fresh = null; }
-    comparing = false;
-    if (fresh != null && main && fresh === lastPaint) return;   // nothing changed
-    if (fresh != null) lastPaint = fresh;
-    window.APP.render();
-  }
-
-  function currentView() {
-    var h = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
-    return VIEWS[h] ? h : 'overview';
+    if (window.Store && window.Store.repaint) return window.Store.repaint();
+    if (window.APP && window.APP.render) window.APP.render();
   }
   function say(m, k) { if (window.APP && window.APP.toast) window.APP.toast(m, k); }
 
@@ -562,21 +551,19 @@
   }
 
   /* ---------------------------------------------------------------- render */
-  var comparing = false;
-
   function render(view) {
     if (!staff()) {
       return '<div class="ad-empty"><h3>Not available</h3>' +
         '<p>This section is for trainers and administrators.</p></div>';
     }
-    if (!cache.batches && !busy && !comparing) {
+    if (!cache.batches && !busy) {
       busy = true;
       batches().then(function () { busy = false; redraw(); })
         .catch(function (e) { busy = false; err = e.message; redraw(); });
     }
     if (view === 'overview') return people.batch ? peopleView() : overview();
     if (view === 'staffreports') return reports();
-    if (!roster && !busy && !comparing) {
+    if (!roster && !busy) {
       busy = true;
       loadRoster().then(function () { busy = false; redraw(); })
         .catch(function (e) { busy = false; err = e.message; redraw(); });
@@ -733,5 +720,23 @@
       '</b>. Figures are as at the moment you press the button.';
   }
 
-  window.ATSStaff = { render: render, views: VIEWS, staff: staff };
+  /* The roster fragment on its own, without the page heading, so the Manage
+     panel can show the same screen. One implementation, two mounts. */
+  function rosterFragment() {
+    if (!roster && !busy) {
+      busy = true;
+      loadRoster().then(function () { busy = false; redraw(); })
+        .catch(function (e) { busy = false; err = e.message; redraw(); });
+    }
+    var full = accountsView();
+    var cut = full.indexOf('<div class="sec">');
+    return cut >= 0 ? full.slice(cut) : full;
+  }
+
+  window.ATSStaff = {
+    render: render,
+    roster: rosterFragment,
+    views: VIEWS,
+    staff: staff
+  };
 })();
