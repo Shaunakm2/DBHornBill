@@ -32,7 +32,29 @@
      these accessors rather than a captured reference. */
   function APP() { return window.APP || {}; }
   function db() { return APP().DB; }
-  function redraw() { if (APP().render) APP().render(); }
+  /* The one repaint path.
+
+     Four modules used to call APP.render() directly, none aware of the others.
+     That is how a save that wrote nothing and a render that triggered a save
+     ended up chasing each other twice a second, rebuilding the page under an
+     open dropdown. Everything now asks for a repaint and this decides when.
+
+     Two rules. Requests inside the same tick collapse into one. And nothing
+     repaints while a control is being used — judged by what was last pressed,
+     not by document.activeElement, which reports <body> while a native select
+     popup is open and so can never see the case that matters. */
+  var repaintQueued = false;
+
+  function redraw() {
+    if (repaintQueued) return;
+    repaintQueued = true;
+    setTimeout(function () {
+      repaintQueued = false;
+      if (busyControl()) { deferRedraw(); return; }
+      if (APP().render) APP().render();
+    }, 0);
+  }
+
   function say(msg, kind) { if (APP().toast) APP().toast(msg, kind); }
   var sb = null;                 // supabase client
   var session = null;
@@ -959,6 +981,54 @@
   api.hydrateCVs = function () { return Promise.resolve(0); };
   api.putFile = function () { return Promise.resolve(); };
   api.countFiles = function () { return Promise.resolve(0); };
+
+  /* ---------------------------------------------------------------- writes */
+  /* Every update goes through here.
+
+     Row-level security does not refuse a forbidden UPDATE — it filters the row
+     away, and the statement then succeeds having changed nothing. A client that
+     does not check the row count reports a save that never happened. That bug
+     has been fixed three times in three places in this codebase; it belongs in
+     one.
+
+     Returns the updated rows. Raises if none came back, with a sentence naming
+     the likely reason. */
+  api.write = function (table, patch, match, opts) {
+    opts = opts || {};
+    var q = sb().from(table).update(patch);
+    Object.keys(match).forEach(function (k) { q = q.eq(k, match[k]); });
+    return q.select().then(function (r) {
+      if (r.error) {
+        if (String(r.error.code) === '23505') {
+          throw new Error(opts.duplicate || 'That value is already in use.');
+        }
+        throw new Error(r.error.message);
+      }
+      if (!r.data || !r.data.length) {
+        throw new Error(opts.denied ||
+          'That is not yours to change, or the batch it belongs to is archived. ' +
+          'Nothing was saved.');
+      }
+      return r.data;
+    });
+  };
+
+  /* Inserts fail loudly on their own, but the duplicate case deserves a
+     sentence rather than a constraint name. */
+  api.create = function (table, row, opts) {
+    opts = opts || {};
+    return sb().from(table).insert(row).select().single().then(function (r) {
+      if (r.error) {
+        if (String(r.error.code) === '23505') {
+          throw new Error(opts.duplicate || 'That already exists.');
+        }
+        throw new Error(r.error.message);
+      }
+      return r.data;
+    });
+  };
+
+  api.repaint = redraw;   // the one repaint path; see redraw() above
 
   api.sb = function () { return sb; };
   api.reload = function () {
