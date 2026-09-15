@@ -77,8 +77,6 @@
 
   /* ---------------------------------------------------------------- data */
   var state = { batches: [], roster: [], members: {}, openBatch: null };
-  /* A roster of 150 with no way to narrow it is a scrolling exercise. */
-  var filt = { q: '', role: '', status: '', sort: 'name' };
 
   function load() {
     return Promise.all([
@@ -177,106 +175,14 @@
         'on the Accounts tab first, then come back and put them on this batch.</p></div>');
   }
 
-  function rosterRows() {
-    var rows = state.roster.slice();
-    var q = filt.q.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(function (p) {
-        return (p.full_name || '').toLowerCase().indexOf(q) >= 0
-            || (p.employee_id || '').toLowerCase().indexOf(q) >= 0
-            || (p.email || '').toLowerCase().indexOf(q) >= 0;
-      });
-    }
-    if (filt.role) rows = rows.filter(function (p) { return p.role === filt.role; });
-    if (filt.status === 'active') rows = rows.filter(function (p) { return p.is_active; });
-    if (filt.status === 'off') rows = rows.filter(function (p) { return !p.is_active; });
-    if (filt.status === 'unassigned') rows = rows.filter(function (p) {
-      return p.role === 'trainee' && Number(p.batches) === 0;
-    });
-
-    var by = filt.sort;
-    rows.sort(function (a, b) {
-      if (by === 'batches') return Number(b.batches) - Number(a.batches);
-      if (by === 'role') return String(a.role).localeCompare(String(b.role))
-        || String(a.full_name).localeCompare(String(b.full_name));
-      if (by === 'employee') return String(a.employee_id || '~')
-        .localeCompare(String(b.employee_id || '~'));
-      return String(a.full_name).localeCompare(String(b.full_name));
-    });
-    return rows;
-  }
-
-  function filterBar() {
-    var unassigned = state.roster.filter(function (p) {
-      return p.role === 'trainee' && Number(p.batches) === 0;
-    }).length;
-    return '<div class="ad-filter">' +
-      '<input data-f="q" placeholder="Search name, employee ID or email" value="' +
-        esc(filt.q) + '">' +
-      '<select data-f="role">' +
-        ['', 'trainee', 'trainer', 'super_admin'].map(function (r) {
-          return '<option value="' + r + '"' + (filt.role === r ? ' selected' : '') + '>' +
-            (r ? r.replace('_', ' ') : 'Any role') + '</option>';
-        }).join('') + '</select>' +
-      '<select data-f="status">' +
-        [['', 'Any status'], ['active', 'Active only'], ['off', 'Deactivated only'],
-         ['unassigned', 'Trainees on no batch' + (unassigned ? ' (' + unassigned + ')' : '')]]
-        .map(function (o) {
-          return '<option value="' + o[0] + '"' + (filt.status === o[0] ? ' selected' : '') +
-            '>' + esc(o[1]) + '</option>';
-        }).join('') + '</select>' +
-      '<select data-f="sort">' +
-        [['name', 'Sort by name'], ['role', 'Sort by role'],
-         ['employee', 'Sort by employee ID'], ['batches', 'Sort by batches']]
-        .map(function (o) {
-          return '<option value="' + o[0] + '"' + (filt.sort === o[0] ? ' selected' : '') +
-            '>' + esc(o[1]) + '</option>';
-        }).join('') + '</select>' +
-      (filt.q || filt.role || filt.status
-        ? '<button class="btn ghost sm" data-ad="clearf">Clear</button>' : '') +
-      '</div>';
-  }
-
+  /* The roster lives in staff.js, which owns the screen in the navigation.
+     Rendering a second copy here is what let the two drift apart: filters were
+     added to one and not the other, and a whole round was lost to looking at
+     the wrong screen. This panel delegates, so there is one implementation. */
   function accountsView() {
-    var isAdmin = me().role === 'super_admin';
-    var shown = rosterRows();
-    return (isAdmin
-      ? '<div class="ad-bar">' +
-        '<button class="btn" data-ad="new-trainee">Add trainee</button>' +
-        '<button class="btn ghost" data-ad="new-trainer">Add trainer</button></div>'
-      : '<p class="ad-help">Only the administrator can create or deactivate accounts.</p>') +
-      filterBar() +
-      '<table class="ad-table"><thead><tr><th>Name</th><th>Employee ID</th><th>Email</th>' +
-      '<th>Role</th><th class="num">Batches</th>' + (isAdmin ? '<th></th>' : '') +
-      '</tr></thead><tbody>' +
-      shown.map(function (p) {
-        return '<tr' + (p.is_active ? '' : ' class="ad-off"') + '>' +
-          '<td>' + esc(p.full_name) + '</td>' +
-          '<td class="mono">' + esc(p.employee_id || '—') + '</td>' +
-          '<td>' + esc(p.email || '—') + '</td>' +
-          '<td>' + esc(p.role) + '</td>' +
-          '<td class="num">' + p.batches + '</td>' +
-          (isAdmin ? '<td class="ad-act">' +
-            '<button class="btn ghost sm" data-ad="person" data-id="' + p.id + '">Edit</button>' +
-            (p.id === me().id ? ''
-              : '<button class="btn ghost sm" data-ad="' +
-                (p.is_active ? 'deactivate' : 'reactivate') + '" data-id="' + p.id + '">' +
-                (p.is_active ? 'Deactivate' : 'Reactivate') + '</button>' +
-                (p.role !== 'trainee'
-                  ? '<button class="btn ghost sm" data-ad="reset" data-id="' + p.id +
-                    '">Reset password</button>' : '')) +
-            '</td>' : '') +
-          '</tr>';
-      }).join('') + '</tbody></table>' +
-      (shown.length ? '' : state.roster.length
-        ? '<div class="ad-empty"><h3>Nothing matches</h3><p>No account matches ' +
-          'those filters. Clear them to see everyone.</p></div>'
-        : '<div class="ad-empty"><h3>No accounts yet</h3><p>' +
-        (isAdmin ? 'Add a trainee or a trainer to get started.'
-                 : 'The administrator has not created any accounts yet.') +
-        '</p></div>') +
-      '<p class="ad-help">Accounts are deactivated, never deleted, so the work they did ' +
-      'stays attributable after they leave.</p>';
+    if (window.ATSStaff && window.ATSStaff.roster) return window.ATSStaff.roster();
+    return '<div class="ad-empty"><h3>Unavailable</h3><p>The accounts screen ' +
+      'needs staff.js, which is not loaded.</p></div>';
   }
 
   function render() {
@@ -406,22 +312,14 @@
           say('A batch code is 4 to 24 characters: capitals, digits and hyphens.', 'no');
           return;
         }
-        return run(sb().from('batches').update({
+        return run(window.Store.write('batches', {
           name: v.name, join_code: v.code.toUpperCase(),
           mode: v.mode, desk_type: v.desk
-        }).eq('id', id).select().then(function (r) {
-          if (r.error) {
-            throw new Error(String(r.error.code) === '23505'
-              ? 'That batch code is already in use.' : r.error.message);
-          }
-          /* A refused update changes nothing and raises nothing. Say so
-             rather than reporting a save that did not happen. */
-          if (!r.data || !r.data.length) {
-            throw new Error('That batch is not yours to change. Ask the administrator, ' +
-              'or the trainer who runs it.');
-          }
-          say('Batch updated.', 'ok');
-        }));
+        }, { id: id }, {
+          duplicate: 'That batch code is already in use.',
+          denied: 'That batch is not yours to change. Ask the administrator, ' +
+                  'or the trainer who runs it.'
+        }).then(function () { say('Batch updated.', 'ok'); }));
       });
     },
 
@@ -448,10 +346,11 @@
          'change anything in it — including you. Nothing is deleted.'
       ).then(function (v) {
         if (!v || v.confirm.toUpperCase() !== 'ARCHIVE') return;
-        return run(sb().from('batches')
-          .update({ status: 'archived', archived_at: new Date().toISOString() })
-          .eq('id', id)
-          .then(function (r) { if (r.error) throw new Error(r.error.message); }));
+        return run(window.Store.write('batches',
+          { status: 'archived', archived_at: new Date().toISOString() },
+          { id: id },
+          { denied: 'That batch is not yours to archive.' })
+          .then(function () { say('Batch archived. It can still be read and reported on.', 'ok'); }));
       });
     },
 
@@ -540,20 +439,6 @@
   }
 
   /* ---------------------------------------------------------------- shell */
-  function onFilter(ev) {
-    var k = ev.target.dataset && ev.target.dataset.f;
-    if (!k || !root) return;
-    filt[k] = ev.target.value;
-    var body = root.querySelector('.ad-body');
-    var keep = ev.target.dataset.f === 'q' ? ev.target.selectionStart : null;
-    body.innerHTML = errorStrip() + accountsView();
-    var again = root.querySelector('[data-f="' + k + '"]');
-    if (again) {
-      again.focus();
-      if (keep != null && again.setSelectionRange) again.setSelectionRange(keep, keep);
-    }
-  }
-
   function open() {
     if (root) return;
     root = document.createElement('div');
@@ -577,11 +462,8 @@
       var k = a.dataset.ad;
       if (k === 'close') return close();
       if (k === 'dismiss') { lastError = null; return render(); }
-      if (k === 'clearf') { filt.q = ''; filt.role = ''; filt.status = ''; return render(); }
       if (acts[k]) acts[k](a.dataset.id, a);
     });
-    root.addEventListener('input', onFilter);
-    root.addEventListener('change', onFilter);
     document.addEventListener('keydown', escClose);
 
     /* The same error strip as every other failure, rather than a second
